@@ -11,6 +11,7 @@ https://raw.githubusercontent.com/Kudo-Dev-tech/kudo-agents/main/<slug>.json
 | Agent | File |
 | --- | --- |
 | Shinichi | [`shinichi.json`](shinichi.json) |
+| Megure (Kudo Validator) | [`megure.json`](megure.json) |
 
 ## Adding one
 
