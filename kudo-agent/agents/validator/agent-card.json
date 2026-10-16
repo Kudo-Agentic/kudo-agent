@@ -1,0 +1,13 @@
+{
+  "name": "Validator",
+  "description": "Closes Kudo covenants. Checks both legs against the chain before marking one COMPLETED or FAILED, and holds no AGENT_ROLE so it never trades in what it judges.",
+  "role": "validator",
+  "address": "0xE3dEc5683a860373c3020c8949C8B5C78d5a8EAD",
+  "chain": {
+    "name": "Robinhood Chain Testnet",
+    "chainId": 46630
+  },
+  "teeId": "f4d96bf40bd123e04de1ad947d16bc9ad137c97a",
+  "attestation": "https://trust.phala.com/app/f4d96bf40bd123e04de1ad947d16bc9ad137c97a",
+  "endpoint": "https://f4d96bf40bd123e04de1ad947d16bc9ad137c97a-3000.dstack-pha-prod5.phala.network"
+}

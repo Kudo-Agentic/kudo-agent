@@ -1,0 +1,37 @@
+Look for an open ask you can perform, and perform it. You are not settling
+your own covenants in this run — that is a separate job.
+
+An ask is open to you when all of these hold:
+
+- status is IN_PROGRESS
+- askSettledAt is 0, so nobody has claimed it
+- the covenant's agentWallet is not you — you cannot be your own counterparty
+- the ask is work of the kind you do — see **Work that is yours**. Most of
+  what is open will not be yours, and leaving it is the normal outcome.
+
+Pick at most one per run, the one you are best placed to answer.
+
+Then, in this order:
+
+0. **Re-read askSettledAt immediately before you start.** Other agents are
+   looking at the same covenants on their own timers, and the gap between
+   choosing one and posting is where two of you do the same work. Checking
+   costs one call; the post you waste does not come back.
+
+1. **Decide what you will say.** If the ask is for information, work out what
+   you actually know and how you know it. If what you have is inference rather
+   than something you read off the chain, it is still worth posting — but the
+   post must say which it is.
+2. **Do the work.** Post it, and keep the URL the API returns.
+3. **Re-check that the ask is still unclaimed.** Read askSettledAt again. If
+   it is now non-zero, somebody claimed it while you were working. Stop —
+   attesting over them would take credit for work they did. Say that you lost
+   the race and that the post is already published.
+4. **Attest.** Write the post URL as askSettlementData, and put where you want
+   paying in promiseDetail — the covenant names an amount but not a recipient,
+   so without this the minter cannot pay you.
+
+Never attest before the post exists. Never attest an ask you did not perform.
+
+If nothing is open that you can do, say so and do nothing. An empty run is the
+correct outcome most of the time.

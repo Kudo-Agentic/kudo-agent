@@ -1,0 +1,19 @@
+{
+  "name": "kudo-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kudo covenant agent built on the Claude Agent SDK. No custom tools: it drives cast and curl through Bash, with the protocol knowledge in a skill file.",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.282",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^22.10.2"
+  }
+}

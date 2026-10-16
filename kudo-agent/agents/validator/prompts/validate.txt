@@ -1,0 +1,47 @@
+Judge the covenants that are ready, and close them.
+
+A covenant is ready when its status is IN_PROGRESS and **both**
+askSettlementData and promiseSettlementData are non-empty. One leg attested is
+not ready: the other party may still be inside their window.
+
+Also look for promises that are overdue — a deadline that has passed with no
+settlement data against it.
+
+Take them one at a time. For each:
+
+1. **Read the covenant.** Quote what the ask and the promise actually require,
+   including the figure and any deadline.
+
+2. **Check the ask's evidence.** Go to the artefact and see whether it does
+   what the ask required. Do not reason from the covenant text about what the
+   evidence probably shows.
+
+3. **Check the promise's evidence**, the same way.
+
+4. **Decide.**
+   - Both legs supported by their evidence → COMPLETED.
+   - A leg whose evidence does not support it, or a deadline passed with
+     nothing attested → FAILED.
+   - Anything you could not establish either way → leave it open, and say
+     which leg and why.
+
+5. **Say what you did**, per covenant, with the figures you read.
+
+Three standing rules.
+
+COMPLETED burns the NFT and cannot be undone. FAILED can be set back. Where
+the call is close, prefer the recoverable one.
+
+A failed lookup is not proof of absence. A rate limit or a network error means
+you could not check, not that the thing is missing. Leave it open.
+
+A post being up does not make it true. A post bought and published performs its
+ask whatever it says — close it COMPLETED. Judging the truth of a claim
+is not your job.
+
+Where an ask wanted a judgement rather than an act — a report that is right,
+not merely a report — the party who commissioned it decides, and they say so
+by paying. Their payment is your evidence that the work was accepted. Their
+silence until the deadline is your evidence that it was not.
+
+If nothing is ready, say so and close nothing. That is the usual outcome.

@@ -1,0 +1,85 @@
+Settle every covenant of this agent whose promise is now due.
+
+A covenant needs action when its status is IN_PROGRESS and its ask has been
+attested — askSettlementData is set, so askSettledAt is non-zero. Until the ask
+is attested the counterparty has not performed and nothing is owed.
+
+**An attestation is a claim, not a receipt.** Writing askSettlementData has no
+access control: any address can put any string in that field, including the
+minter attesting their own ask. So before you keep a promise, go and look at
+what the ask's evidence actually is.
+
+- a transaction hash — decode its Transfer log and check the amount, the
+  recipient and the sender are what the ask required
+- a post URL — look the post up and check it exists and is about what was
+  asked for
+
+If the evidence does not support the ask, **do not pay.** Say which part does
+not hold and leave the covenant alone. Paying anyway settles a covenant whose
+other side was never performed, and your payment is then the only real thing
+in it.
+
+If you cannot check — a lookup failed, the network is down — say so and leave
+it. An unpaid promise you can still keep tomorrow is better than a payment you
+cannot take back.
+
+Then read the promise's own timing words, because they mean opposite things:
+
+- A **deadline** — "within one hour", "by Friday", "no later than 7 days".
+  The window is the latest acceptable moment, so keep the promise now. Waiting
+  for the window to elapse is how you break it.
+- A **term** — "after 30 days", "in two weeks", "30 days from payment".
+  Nothing is owed until that long has passed since askSettledAt. Keep it once
+  the term has elapsed, and leave it alone before then.
+- **No timing words at all** — keep it now.
+
+State which reading you applied and the timestamps you compared, so a wrong
+call is visible rather than buried.
+
+For each due covenant, in order, one at a time:
+
+1. Read the covenant and say in plain terms what the promise obliges this agent
+   to do. The contract stores no amount and no tweet text — both live in the
+   promise text, so quote the part you are acting on.
+
+2. Keep the promise. A promise is one of two kinds, and which one decides what
+   you do and what you record:
+
+   - **A payment.** Transfer the USDG the promise names. USDG is an ERC-20
+     with six decimals, so 4 USDG is 4000000 base units, and a payment is a
+     contract call rather than a value-bearing transaction. The recipient is
+     usually in `promiseDetail`, which the counterparty wrote when attesting
+     the ask — the promise itself predates knowing who they are. If neither
+     names a destination, settle nothing and report it.
+
+     Verify it landed by decoding the Transfer event in the receipt: the
+     recipient and amount are in the log, while the transaction's own `to` is
+     the token contract and its `value` is zero. Reading `value` reports every
+     payment as zero. The settlement data is the **transaction hash**.
+
+   - **A tweet.** Post it with the twitter skill. The settlement data is the
+     **tweet URL** the X API returns. Post first and keep the URL; never write
+     settlement data for a tweet that has not actually posted.
+
+   If a promise names neither, or names both, do not guess which it is — say
+   what the text says and leave the covenant alone.
+
+3. Write promiseSettlementData with the hash or the URL from step 2. Write it
+   only after the thing it attests has demonstrably happened.
+
+**Skip any covenant you have already settled.** A covenant whose
+promiseSettlementData is non-empty is done, even though its status is still
+IN_PROGRESS — it stays IN_PROGRESS until the validator closes it, which can be
+several minutes after you paid. This job runs on a timer, so without this
+check you will see the same covenant again and pay it a second time. The
+contract will not stop you and the money does not come back.
+
+Skip any covenant whose ask is unattested: the counterparty has not performed
+yet, so nothing is owed. Say which ones you skipped and why.
+
+If a payment would exceed the agent's USDG balance, or would leave too little
+ETH for the attestation that has to follow it, stop and report it rather than
+sending a partial amount. Both balances matter: USDG pays the promise, ETH
+pays the gas. If a tweet cannot be posted, report the error and
+leave the covenant open rather than attesting it. Do not close covenants: that
+needs the validator key, which you do not hold.
