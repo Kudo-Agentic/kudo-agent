@@ -1,15 +1,15 @@
 /**
  * kudo-mcp — Kudo's MCP server.
  *
- *   npx -y @kudo-archi/mcp            stdio, for Claude Code / Desktop, Cursor, Codex
- *   npx -y @kudo-archi/mcp --http     Streamable HTTP on $PORT (default 3333), never signs
+ *   npx -y @kudo-dev/mcp            stdio, for Claude Code / Desktop, Cursor, Codex
+ *   npx -y @kudo-dev/mcp --http     Streamable HTTP on $PORT (default 3333), never signs
  *
  * Stdio signs with KUDO_PRIVATE_KEY when it is set; otherwise every write tool
  * returns an unsigned transaction for your own wallet.
  */
 import { parseArgs } from "node:util";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { kudoFromEnv } from "@kudo-archi/sdk";
+import { kudoFromEnv } from "@kudo-dev/sdk";
 
 import { serveHttp } from "./http.js";
 import { createKudoMcpServer } from "./server.js";
@@ -26,8 +26,8 @@ const { values } = parseArgs({
 if (values.help) {
   console.log(`kudo-mcp — Kudo covenants over MCP
 
-  npx -y @kudo-archi/mcp              stdio (default)
-  npx -y @kudo-archi/mcp --http       Streamable HTTP at /mcp, unsigned only
+  npx -y @kudo-dev/mcp              stdio (default)
+  npx -y @kudo-dev/mcp --http       Streamable HTTP at /mcp, unsigned only
 
 Env: KUDO_PRIVATE_KEY (stdio only), KUDO_AGENT_ID, KUDO_NETWORK, KUDO_RPC_URL,
      PORT, KUDO_MCP_RATE_LIMIT (per IP per minute), KUDO_MCP_ALLOWED_ORIGINS,

@@ -1,6 +1,6 @@
 {
-  "name": "@kudo-archi/plugin-kudo",
-  "version": "0.1.0",
+  "name": "@kudo-dev/plugin-kudo",
+  "version": "0.2.0",
   "description": "ElizaOS plugin for Kudo: Eliza agents register an ERC-8004 identity, mint covenants, take open asks and link proof on Robinhood Chain.",
   "license": "MIT",
   "type": "module",
@@ -10,13 +10,27 @@
     "url": "git+https://github.com/Kudo-Dev-tech/kudo-agents.git",
     "directory": "packages/plugin-kudo"
   },
-  "keywords": ["elizaos", "elizaos-plugins", "plugin", "kudo", "covenant", "erc-8004", "robinhood-chain"],
+  "keywords": [
+    "elizaos",
+    "elizaos-plugins",
+    "plugin",
+    "kudo",
+    "covenant",
+    "erc-8004",
+    "robinhood-chain"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -26,7 +40,7 @@
     "@elizaos/core": "^1.0.0"
   },
   "dependencies": {
-    "@kudo-archi/sdk": "^0.1.0",
+    "@kudo-dev/sdk": "^0.1.0",
     "viem": "^2.37.0"
   },
   "devDependencies": {
@@ -39,11 +53,30 @@
   "agentConfig": {
     "pluginType": "elizaos:plugin:1.0.0",
     "pluginParameters": {
-      "KUDO_PRIVATE_KEY": { "type": "string", "description": "Agent wallet key that signs Kudo transactions. Without it the plugin is read-only.", "required": false, "sensitive": true },
-      "KUDO_AGENT_ID": { "type": "string", "description": "The agent's ERC-8004 id on Robinhood Chain.", "required": false },
-      "KUDO_NETWORK": { "type": "string", "description": "robinhood (default) or robinhood-testnet.", "required": false },
-      "KUDO_RPC_URL": { "type": "string", "description": "RPC override.", "required": false }
+      "KUDO_PRIVATE_KEY": {
+        "type": "string",
+        "description": "Agent wallet key that signs Kudo transactions. Without it the plugin is read-only.",
+        "required": false,
+        "sensitive": true
+      },
+      "KUDO_AGENT_ID": {
+        "type": "string",
+        "description": "The agent's ERC-8004 id on Robinhood Chain.",
+        "required": false
+      },
+      "KUDO_NETWORK": {
+        "type": "string",
+        "description": "robinhood (default) or robinhood-testnet.",
+        "required": false
+      },
+      "KUDO_RPC_URL": {
+        "type": "string",
+        "description": "RPC override.",
+        "required": false
+      }
     }
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }

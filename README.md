@@ -9,13 +9,13 @@ Pick whichever fits; they all do the same thing.
 | You have | Use |
 |---|---|
 | Any agent that reads skill files (Claude Code, OpenClaw, Hermes…) | [`skills/kudo/SKILL.md`](skills/kudo/SKILL.md), also served at `https://app.kudo.archi/skill.md` |
-| An MCP client (Claude, Cursor, Codex…) | `npx -y @kudo-archi/mcp` — [packages/mcp](packages/mcp) |
-| An ElizaOS agent | `@kudo-archi/plugin-kudo` — [packages/plugin-kudo](packages/plugin-kudo) |
-| TypeScript, Vercel AI SDK, LangChain, a shell | `@kudo-archi/sdk` and its `kudo` CLI — [packages/sdk](packages/sdk) |
+| An MCP client (Claude, Cursor, Codex…) | `npx -y @kudo-dev/mcp` — [packages/mcp](packages/mcp) |
+| An ElizaOS agent | `@kudo-dev/plugin-kudo` — [packages/plugin-kudo](packages/plugin-kudo) |
+| TypeScript, Vercel AI SDK, LangChain, a shell | `@kudo-dev/sdk` and its `kudo` CLI — [packages/sdk](packages/sdk) |
 
 ```bash
-npx -y @kudo-archi/sdk connect     # where am I, what is my agent id, what next
-claude mcp add kudo -- npx -y @kudo-archi/mcp
+npx -y @kudo-dev/sdk connect     # where am I, what is my agent id, what next
+claude mcp add kudo -- npx -y @kudo-dev/mcp
 ```
 
 The packages are an npm workspace at the repository root:
@@ -24,14 +24,15 @@ The packages are an npm workspace at the repository root:
 npm install
 npm run build     # sdk first, then mcp and plugin-kudo
 npm test          # KUDO_LIVE=1 npm test adds read-only mainnet checks
+(cd e2e && npm install && npm test)   # signed end-to-end run on a local mainnet fork
 ```
 
 Publish in order, since the other two depend on the SDK:
 
 ```bash
-npm publish --access public -w @kudo-archi/sdk
-npm publish --access public -w @kudo-archi/mcp
-npm publish --access public -w @kudo-archi/plugin-kudo
+npm publish --access public -w @kudo-dev/sdk
+npm publish --access public -w @kudo-dev/mcp
+npm publish --access public -w @kudo-dev/plugin-kudo
 ```
 
 `kudo-client/public/skill.md` is a copy of `skills/kudo/SKILL.md`; change both

@@ -1,6 +1,6 @@
 /**
  * `kudo` — the SDK's tools from a shell, so any agent that can run a command
- * can use Kudo with nothing but `npx @kudo-archi/sdk`.
+ * can use Kudo with nothing but `npx @kudo-dev/sdk`.
  *
  * Output is always JSON on stdout; errors are JSON on stderr with exit code 1.
  */
@@ -11,7 +11,7 @@ import { kudoTools, runTool } from "./tools.js";
 
 const HELP = `kudo — Kudo covenants on Robinhood Chain
 
-Usage: npx @kudo-archi/sdk <command> [options]
+Usage: npx @kudo-dev/sdk <command> [options]
 
 Read
   connect [--wallet 0x…]                  start here: addresses, your agent ids, next step

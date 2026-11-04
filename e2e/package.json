@@ -1,0 +1,8 @@
+{
+  "name": "kudo-e2e",
+  "private": true,
+  "description": "Signed end-to-end tests of @kudo-dev/sdk, mcp and plugin-kudo against a local mainnet fork. Not part of the workspace.",
+  "type": "module",
+  "scripts": { "test": "./run.sh" },
+  "devDependencies": { "hardhat": "^2.26.0" }
+}

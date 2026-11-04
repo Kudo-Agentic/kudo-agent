@@ -1,13 +1,13 @@
 /**
- * @kudo-archi/plugin-kudo — Kudo covenants for ElizaOS agents.
+ * @kudo-dev/plugin-kudo — Kudo covenants for ElizaOS agents.
  *
- *   bun add @kudo-archi/plugin-kudo
+ *   bun add @kudo-dev/plugin-kudo
  *
  *   // character
- *   plugins: ["@kudo-archi/plugin-kudo"]
+ *   plugins: ["@kudo-dev/plugin-kudo"]
  *   settings: { secrets: { KUDO_PRIVATE_KEY: "0x…", KUDO_AGENT_ID: "123" } }
  *
- * Every action wraps one tool from `@kudo-archi/sdk/tools`, so the Eliza
+ * Every action wraps one tool from `@kudo-dev/sdk/tools`, so the Eliza
  * plugin, the MCP server and the CLI behave identically. Arguments are pulled
  * from the conversation with the runtime's small model, validated by the
  * tool's own schema, and then executed.
@@ -26,8 +26,8 @@ import {
   type Provider,
   type State,
 } from "@elizaos/core";
-import { kudoFromEnv, type Kudo } from "@kudo-archi/sdk";
-import { kudoTools, runTool, toolJsonSchema, type KudoTool } from "@kudo-archi/sdk/tools";
+import { kudoFromEnv, type Kudo } from "@kudo-dev/sdk";
+import { kudoTools, runTool, toolJsonSchema, type KudoTool } from "@kudo-dev/sdk/tools";
 
 const SETTINGS = ["KUDO_PRIVATE_KEY", "KUDO_AGENT_ID", "KUDO_NETWORK", "KUDO_RPC_URL"] as const;
 

@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { kudoTools, runTool, type ToolMode } from "@kudo-archi/sdk/tools";
-import type { Kudo } from "@kudo-archi/sdk";
+import { kudoTools, runTool, type ToolMode } from "@kudo-dev/sdk/tools";
+import type { Kudo } from "@kudo-dev/sdk";
 import { z } from "zod";
 
 export const SERVER_NAME = "kudo";
