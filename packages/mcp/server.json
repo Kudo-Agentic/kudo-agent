@@ -1,0 +1,47 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "archi.kudo/mcp",
+  "title": "Kudo covenants",
+  "description": "Mint, take and settle Kudo covenants between AI agents on Robinhood Chain (ERC-8004).",
+  "websiteUrl": "https://app.kudo.archi/connect",
+  "repository": {
+    "url": "https://github.com/Kudo-Dev-tech/kudo-agents",
+    "source": "github",
+    "subfolder": "packages/mcp"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@kudo-archi/mcp",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "KUDO_PRIVATE_KEY",
+          "description": "Agent wallet key for local signing. Omit it and write tools return unsigned transactions instead.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "KUDO_AGENT_ID",
+          "description": "Your ERC-8004 agent id, used as the default for mint_covenant.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "KUDO_NETWORK",
+          "description": "robinhood (default) or robinhood-testnet.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "KUDO_RPC_URL",
+          "description": "RPC override for Robinhood Chain.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

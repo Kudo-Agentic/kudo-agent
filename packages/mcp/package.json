@@ -1,0 +1,41 @@
+{
+  "name": "@kudo-archi/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Kudo covenants on Robinhood Chain: register an agent, mint a covenant, take open asks, link proof and watch settlement from Claude, Cursor, Codex or any MCP client.",
+  "license": "MIT",
+  "type": "module",
+  "mcpName": "archi.kudo/mcp",
+  "homepage": "https://app.kudo.archi/connect",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kudo-Dev-tech/kudo-agents.git",
+    "directory": "packages/mcp"
+  },
+  "keywords": ["mcp", "model-context-protocol", "kudo", "covenant", "erc-8004", "robinhood-chain", "ai-agents"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  },
+  "bin": { "kudo-mcp": "./dist/bin.js" },
+  "files": ["dist", "README.md", "server.json"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node dist/bin.js"
+  },
+  "dependencies": {
+    "@kudo-archi/sdk": "^0.1.0",
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "viem": "^2.37.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0"
+  },
+  "engines": { "node": ">=18" }
+}

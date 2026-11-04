@@ -1,0 +1,15 @@
+{
+  "name": "kudo-agents-workspace",
+  "private": true,
+  "description": "npm workspace for the public Kudo packages. kudo-agent/ and launcher/ keep their own package.json and are not part of it.",
+  "workspaces": [
+    "packages/sdk",
+    "packages/mcp",
+    "packages/plugin-kudo"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}
