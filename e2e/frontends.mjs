@@ -1,0 +1,69 @@
+// The write path through each front end, with real signatures against the
+// local fork: the kudo CLI, the MCP server (signing and unsigned →
+// send_signed_transaction) and the ElizaOS plugin. Run through ./run.sh.
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { createWalletClient, http } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { robinhood } from "@kudo-dev/sdk";
+import { kudoPlugin } from "@kudo-dev/plugin-kudo";
+
+const CLI = fileURLToPath(new URL("../packages/sdk/dist/cli.js", import.meta.url));
+const MCP = fileURLToPath(new URL("../packages/mcp/dist/bin.js", import.meta.url));
+const RPC = "http://127.0.0.1:8545";
+const rpc = (m, p) => fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: m, params: p }) }).then((r) => r.json());
+const ok = (c, m) => { if (!c) throw new Error("FAIL: " + m); console.log("  ✓", m); };
+
+const key = generatePrivateKey();
+const acct = privateKeyToAccount(key);
+await rpc("hardhat_setBalance", [acct.address, "0xDE0B6B3A7640000"]);
+const env = { ...process.env, KUDO_RPC_URL: RPC, KUDO_PRIVATE_KEY: key };
+const cli = (...a) => JSON.parse(execFileSync("node", [CLI, ...a], { env, encoding: "utf8" }));
+
+console.log("CLI (signing)");
+const reg = cli("register", "--name", "CLI Fork Agent");
+ok(reg.signed && reg.agentId, `registered agent ${reg.agentId}`);
+env.KUDO_AGENT_ID = reg.agentId;
+const mint = cli("mint", "--type", "advance", "--ask", "Pay me 3 USDG up front for a logo.", "--promise", "I'll deliver the logo as a PNG on IPFS within one day.");
+ok(mint.signed && mint.covenantId, `minted covenant ${mint.covenantId}`);
+
+console.log("MCP stdio (signing)");
+const c = new Client({ name: "e2e", version: "0" });
+await c.connect(new StdioClientTransport({ command: "node", args: [MCP], env }));
+const hc = JSON.parse((await c.callTool({ name: "how_to_connect", arguments: {} })).content[0].text);
+ok(hc.signing.includes(acct.address) && hc.agentIds.includes(reg.agentId), "how_to_connect sees the signer and its agent id");
+const mm = await c.callTool({ name: "mint_covenant", arguments: { type: "LOAN", ask: "Lend me 2 USDG for gas.", promise: "I'll repay 2.1 USDG within one day." } });
+const mr = JSON.parse(mm.content[0].text);
+ok(!mm.isError && mr.signed && mr.covenantId, `mint_covenant signed covenant ${mr.covenantId}`);
+await c.close();
+
+console.log("ElizaOS plugin (signing)");
+const runtime = {
+  getSetting: (k) => ({ KUDO_PRIVATE_KEY: key, KUDO_AGENT_ID: reg.agentId, KUDO_RPC_URL: RPC })[k] ?? null,
+  useModel: async () => JSON.stringify({ type: "INVOICE", ask: "Review my README and open a PR with fixes.", promise: "I'll pay 4 USDG within one day of the PR." }),
+};
+const action = kudoPlugin.actions.find((a) => a.name === "MINT_COVENANT");
+ok(await action.validate(runtime, { content: { text: "" } }), "MINT_COVENANT validates with a key");
+let said = "";
+const res = await action.handler(runtime, { content: { text: "mint an invoice for a README review, 4 USDG" } }, undefined, undefined, async (m) => { said = m.text; return []; });
+ok(res.success && /Minted covenant \d+/.test(said), `handler: "${said.trim()}"`);
+const prov = await kudoPlugin.providers[0].get(runtime, { content: {} }, {});
+ok(prov.text.includes(acct.address), "KUDO provider reports the signer");
+
+console.log("MCP unsigned → own wallet signs → send_signed_transaction");
+const envU = { ...env };
+delete envU.KUDO_PRIVATE_KEY;
+const u = new Client({ name: "e2e-unsigned", version: "0" });
+await u.connect(new StdioClientTransport({ command: "node", args: [MCP], env: envU }));
+const ur = JSON.parse((await u.callTool({ name: "link_proof", arguments: { id: mint.covenantId, proof: "https://ipfs.io/ipfs/bafylogo", from: acct.address } })).content[0].text);
+ok(ur.signed === false && ur.simulated.startsWith("ok"), "unsigned link_proof, dry-run ok as owner");
+const w = createWalletClient({ account: acct, chain: { ...robinhood, rpcUrls: { default: { http: [RPC] } } }, transport: http(RPC) });
+const t = ur.unsignedTransaction;
+const signed = await w.signTransaction(await w.prepareTransactionRequest({ to: t.to, data: t.data, value: BigInt(t.value) }));
+const br = JSON.parse((await u.callTool({ name: "send_signed_transaction", arguments: { serialized: signed } })).content[0].text);
+ok(br.status === "success", `broadcast ${br.hash.slice(0, 10)} succeeded`);
+const cov = JSON.parse((await u.callTool({ name: "get_covenant", arguments: { id: mint.covenantId } })).content[0].text);
+ok(cov.promiseProof === "https://ipfs.io/ipfs/bafylogo", "proof is on chain");
+await u.close();

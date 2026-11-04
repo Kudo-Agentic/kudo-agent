@@ -21,6 +21,14 @@ export const REVERTS: Record<string, { name: string; hint: string }> = {
     name: "InvalidParameter",
     hint: "The contract rejected an argument, such as an empty string or a zero address.",
   },
+  "0x356680b7": {
+    name: "InsufficientFunds",
+    hint: "The wallet does not hold enough USDG for this payment. Check usdgBalance and top up, or pay less.",
+  },
+  "0xe450d38c": {
+    name: "ERC20InsufficientBalance",
+    hint: "The wallet does not hold enough of this token for the transfer.",
+  },
   "0xf480469b": {
     name: "ConditionIsNotMet",
     hint: "This selector belongs to an older Kudo deployment. You are probably pointing at the wrong contract.",

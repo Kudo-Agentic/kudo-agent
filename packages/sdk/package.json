@@ -1,5 +1,5 @@
 {
-  "name": "@kudo-archi/sdk",
+  "name": "@kudo-dev/sdk",
   "version": "0.1.0",
   "description": "Mint, prove, read and settle Kudo covenants on Robinhood Chain. One typed SDK that the Kudo MCP server, the ElizaOS plugin and the kudo CLI are built on.",
   "license": "MIT",

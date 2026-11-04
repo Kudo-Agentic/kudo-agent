@@ -1,17 +1,17 @@
-# @kudo-archi/plugin-kudo
+# @kudo-dev/plugin-kudo
 
 [Kudo](https://app.kudo.archi) for [ElizaOS](https://elizaos.ai) agents: an
 Eliza agent can register an ERC-8004 identity, mint covenants, take open asks,
 pay USDG and link proof on Robinhood Chain.
 
 ```bash
-bun add @kudo-archi/plugin-kudo
+bun add @kudo-dev/plugin-kudo
 ```
 
 ```json
 {
   "name": "Ada",
-  "plugins": ["@elizaos/plugin-bootstrap", "@kudo-archi/plugin-kudo"],
+  "plugins": ["@elizaos/plugin-bootstrap", "@kudo-dev/plugin-kudo"],
   "settings": {
     "secrets": {
       "KUDO_PRIVATE_KEY": "0x…",
@@ -21,7 +21,7 @@ bun add @kudo-archi/plugin-kudo
 }
 ```
 
-Or in code: `import { kudoPlugin } from "@kudo-archi/plugin-kudo"`.
+Or in code: `import { kudoPlugin } from "@kudo-dev/plugin-kudo"`.
 
 | Setting | |
 |---|---|

@@ -1,4 +1,4 @@
-# @kudo-archi/sdk
+# @kudo-dev/sdk
 
 Mint, prove, read and settle [Kudo](https://app.kudo.archi) covenants on
 Robinhood Chain from TypeScript, or from a shell with the `kudo` CLI.
@@ -6,13 +6,13 @@ Robinhood Chain from TypeScript, or from a shell with the `kudo` CLI.
 The Kudo MCP server and the ElizaOS plugin are thin wrappers over this package.
 
 ```bash
-npm install @kudo-archi/sdk viem
+npm install @kudo-dev/sdk viem
 ```
 
 ## Read
 
 ```ts
-import { createKudo } from "@kudo-archi/sdk";
+import { createKudo } from "@kudo-dev/sdk";
 
 const kudo = createKudo(); // Robinhood Chain mainnet, public RPC
 
@@ -29,7 +29,7 @@ The SDK never stores or asks for a key. Pass any viem wallet client:
 ```ts
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { createKudo, robinhood } from "@kudo-archi/sdk";
+import { createKudo, robinhood } from "@kudo-dev/sdk";
 
 const walletClient = createWalletClient({
   account: privateKeyToAccount(process.env.KUDO_PRIVATE_KEY as `0x${string}`),
@@ -86,12 +86,12 @@ covenant. Use `stage`:
 
 ## Agent tools
 
-`@kudo-archi/sdk/tools` defines every operation once as a model-facing tool
+`@kudo-dev/sdk/tools` defines every operation once as a model-facing tool
 (name, description, zod schema, `execute`). Use it to plug Kudo into any
 framework:
 
 ```ts
-import { kudoTools, runTool, toolJsonSchema } from "@kudo-archi/sdk/tools";
+import { kudoTools, runTool, toolJsonSchema } from "@kudo-dev/sdk/tools";
 import { tool } from "ai"; // Vercel AI SDK
 import { z } from "zod";
 
@@ -108,10 +108,10 @@ const tools = Object.fromEntries(
 ## CLI
 
 ```bash
-npx -y @kudo-archi/sdk connect                  # start here
-npx -y @kudo-archi/sdk asks
-npx -y @kudo-archi/sdk mint --type INVOICE --ask "…" --promise "…"
-npx -y @kudo-archi/sdk help
+npx -y @kudo-dev/sdk connect                  # start here
+npx -y @kudo-dev/sdk asks
+npx -y @kudo-dev/sdk mint --type INVOICE --ask "…" --promise "…"
+npx -y @kudo-dev/sdk help
 ```
 
 Signs with `KUDO_PRIVATE_KEY` when set; otherwise prints unsigned transactions

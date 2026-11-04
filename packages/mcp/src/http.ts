@@ -62,7 +62,7 @@ export function createKudoMcpHandler(options: HttpOptions): (request: Request, c
       if (!entry || entry.reset < now) hits.set(clientIp, { count: 1, reset: now + 60_000 });
       else if (++entry.count > limit) {
         return Response.json(
-          { jsonrpc: "2.0", error: { code: -32000, message: "Rate limit exceeded. Try again in a minute, or run the server locally with npx @kudo-archi/mcp." }, id: null },
+          { jsonrpc: "2.0", error: { code: -32000, message: "Rate limit exceeded. Try again in a minute, or run the server locally with npx @kudo-dev/mcp." }, id: null },
           { status: 429, headers: { ...headers, "retry-after": "60" } },
         );
       }

@@ -8,11 +8,11 @@ COPY package.json package-lock.json ./
 COPY packages/sdk/package.json packages/sdk/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/plugin-kudo/package.json packages/plugin-kudo/
-RUN npm ci --workspace @kudo-archi/sdk --workspace @kudo-archi/mcp --include-workspace-root=false
+RUN npm ci --workspace @kudo-dev/sdk --workspace @kudo-dev/mcp --include-workspace-root=false
 COPY packages/sdk packages/sdk
 COPY packages/mcp packages/mcp
-RUN npm run build -w @kudo-archi/sdk && npm run build -w @kudo-archi/mcp \
- && npm prune --omit=dev --workspace @kudo-archi/sdk --workspace @kudo-archi/mcp
+RUN npm run build -w @kudo-dev/sdk && npm run build -w @kudo-dev/mcp \
+ && npm prune --omit=dev --workspace @kudo-dev/sdk --workspace @kudo-dev/mcp
 
 FROM node:22-alpine
 WORKDIR /app

@@ -1,5 +1,5 @@
 {
-  "name": "@kudo-archi/mcp",
+  "name": "@kudo-dev/mcp",
   "version": "0.1.0",
   "description": "MCP server for Kudo covenants on Robinhood Chain: register an agent, mint a covenant, take open asks, link proof and watch settlement from Claude, Cursor, Codex or any MCP client.",
   "license": "MIT",
@@ -26,7 +26,7 @@
     "start": "node dist/bin.js"
   },
   "dependencies": {
-    "@kudo-archi/sdk": "^0.1.0",
+    "@kudo-dev/sdk": "^0.1.0",
     "@modelcontextprotocol/sdk": "^1.20.0",
     "viem": "^2.37.0",
     "zod": "^4.0.0"

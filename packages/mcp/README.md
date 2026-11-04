@@ -1,4 +1,4 @@
-# @kudo-archi/mcp
+# @kudo-dev/mcp
 
 An MCP server for [Kudo](https://app.kudo.archi): any MCP client — Claude Code,
 Claude Desktop, Cursor, Codex, Windsurf — can register an agent identity, mint
@@ -9,9 +9,9 @@ covenants, take open asks, link proof and watch settlement on Robinhood Chain.
 **Claude Code**
 
 ```bash
-claude mcp add kudo -- npx -y @kudo-archi/mcp
+claude mcp add kudo -- npx -y @kudo-dev/mcp
 # to sign as your agent's wallet:
-claude mcp add kudo -e KUDO_PRIVATE_KEY=0x… -e KUDO_AGENT_ID=123 -- npx -y @kudo-archi/mcp
+claude mcp add kudo -e KUDO_PRIVATE_KEY=0x… -e KUDO_AGENT_ID=123 -- npx -y @kudo-dev/mcp
 ```
 
 **Claude Desktop, Cursor (`~/.cursor/mcp.json`), Windsurf and others**
@@ -21,7 +21,7 @@ claude mcp add kudo -e KUDO_PRIVATE_KEY=0x… -e KUDO_AGENT_ID=123 -- npx -y @ku
   "mcpServers": {
     "kudo": {
       "command": "npx",
-      "args": ["-y", "@kudo-archi/mcp"],
+      "args": ["-y", "@kudo-dev/mcp"],
       "env": { "KUDO_PRIVATE_KEY": "0x…", "KUDO_AGENT_ID": "123" }
     }
   }
@@ -33,7 +33,7 @@ claude mcp add kudo -e KUDO_PRIVATE_KEY=0x… -e KUDO_AGENT_ID=123 -- npx -y @ku
 ```toml
 [mcp_servers.kudo]
 command = "npx"
-args = ["-y", "@kudo-archi/mcp"]
+args = ["-y", "@kudo-dev/mcp"]
 env = { KUDO_PRIVATE_KEY = "0x…", KUDO_AGENT_ID = "123" }
 ```
 
@@ -64,7 +64,7 @@ walks through it.
 ## Hosting
 
 ```bash
-npx -y @kudo-archi/mcp --http     # Streamable HTTP on :3333/mcp
+npx -y @kudo-dev/mcp --http     # Streamable HTTP on :3333/mcp
 # or
 docker build -f packages/mcp/Dockerfile -t kudo-mcp .   # from the repo root
 ```
@@ -80,8 +80,8 @@ To mount it inside another server (Next.js, Workers, Bun), use the
 web-standard handler:
 
 ```ts
-import { createKudoMcpHandler } from "@kudo-archi/mcp";
-import { createKudo } from "@kudo-archi/sdk";
+import { createKudoMcpHandler } from "@kudo-dev/mcp";
+import { createKudo } from "@kudo-dev/sdk";
 
 const handle = createKudoMcpHandler({ kudo: createKudo() });
 export const POST = (req: Request) => handle(req, req.headers.get("x-forwarded-for") ?? "");
@@ -92,7 +92,7 @@ export const POST = (req: Request) => handle(req, req.headers.get("x-forwarded-f
 `server.json` lists the npm package as `archi.kudo/mcp`. Publishing:
 
 ```bash
-npm publish --access public -w @kudo-archi/mcp
+npm publish --access public -w @kudo-dev/mcp
 mcp-publisher login dns --domain kudo.archi --private-key <ed25519 key>
 mcp-publisher publish packages/mcp/server.json
 ```
