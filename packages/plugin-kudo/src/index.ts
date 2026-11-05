@@ -20,6 +20,7 @@ import {
   logger,
   parseJSONObjectFromText,
   type Action,
+  type HandlerOptions,
   type IAgentRuntime,
   type Memory,
   type Plugin,
@@ -124,8 +125,21 @@ const ACTIONS: Record<string, { name: string; similes: string[]; example: [strin
   },
 };
 
-function extractionPrompt(tool: KudoTool, message: Memory, state?: State): string {
+/** What earlier actions in this same turn returned, so a chain like GET_COVENANT → PAY_USDG can use it. */
+function earlierResults(options?: HandlerOptions): string {
+  const previous = options?.actionContext?.previousResults ?? [];
+  return previous
+    .map((r) => {
+      const result = (r.data as { result?: unknown } | undefined)?.result;
+      return result ? JSON.stringify(result).slice(0, 3000) : (r.text ?? "");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function extractionPrompt(tool: KudoTool, message: Memory, state?: State, options?: HandlerOptions): string {
   const recent = typeof state?.text === "string" ? state.text.slice(-4000) : "";
+  const earlier = earlierResults(options);
   return `You are filling in the arguments for the "${tool.name}" tool.
 
 Tool: ${tool.description}
@@ -135,7 +149,7 @@ ${JSON.stringify(toolJsonSchema(tool), null, 2)}
 
 Recent conversation:
 ${recent}
-
+${earlier ? `\nResults of the actions already taken for this message (use these facts, e.g. a payee address in promiseDetail or a transaction hash):\n${earlier}\n` : ""}
 Latest message:
 ${message.content.text ?? ""}
 
@@ -158,13 +172,13 @@ function toAction(tool: KudoTool): Action {
         return false;
       }
     },
-    handler: async (runtime, message, state, _options, callback) => {
+    handler: async (runtime, message, state, options, callback) => {
       const { tools } = getKudo(runtime);
       const current = tools.get(tool.name) ?? tool;
 
       let args: Record<string, unknown> = {};
       if (!noArgs) {
-        const raw = await runtime.useModel(ModelType.TEXT_SMALL, { prompt: extractionPrompt(current, message, state) });
+        const raw = await runtime.useModel(ModelType.TEXT_SMALL, { prompt: extractionPrompt(current, message, state, options) });
         args = parseJSONObjectFromText(String(raw)) ?? {};
       }
 
@@ -213,7 +227,15 @@ function summarize(tool: string, r: Record<string, unknown>): string {
         : "No open asks on Kudo right now.";
     }
     case "get_covenant":
-      return `Covenant ${r.id} (${r.type}) is ${r.stage}. Ask: ${r.ask}. Promise: ${r.promise}. ${r.url ?? ""}`;
+      return [
+        `Covenant ${r.id} (${r.type}) is ${r.stage}. Ask: ${r.ask} Promise: ${r.promise}`,
+        r.promiseDetail ? `Payment instruction from the counterparty: ${r.promiseDetail}` : "",
+        r.askProof ? `Ask proof: ${r.askProof}` : "",
+        r.promiseProof ? `Promise proof: ${r.promiseProof}` : "",
+        String(r.url ?? ""),
+      ]
+        .filter(Boolean)
+        .join("\n");
     case "agent_record": {
       const c = r.covenants as { kept: number; broken: number; open: number };
       return `${r.name ?? `Agent ${r.agentId}`}: ${c.kept} kept, ${c.broken} broken, ${c.open} open.`;
@@ -229,7 +251,8 @@ function summarize(tool: string, r: Record<string, unknown>): string {
 export const kudoProvider: Provider = {
   name: "KUDO",
   description: "The agent's Kudo identity and the covenant promises it currently owes",
-  dynamic: true,
+  // Not dynamic: an agent has to see what it owes without being asked, or
+  // it cannot keep a promise unprompted.
   get: async (runtime) => {
     try {
       const { kudo, agentId } = getKudo(runtime);
