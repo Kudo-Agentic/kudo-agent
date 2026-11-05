@@ -4,3 +4,6 @@ hardhat.log
 eliza/node_modules/
 eliza/.db/
 eliza/bun.lock
+skill/home/
+skill/blocks/
+skill/*.log
