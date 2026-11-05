@@ -27,21 +27,37 @@ import {
   type Provider,
   type State,
 } from "@elizaos/core";
-import { kudoFromEnv, type Kudo } from "@kudo-dev/sdk";
+import { kudoFromEnv, kudoFromEnvWithKeySource, type KeySource, type Kudo } from "@kudo-dev/sdk";
 import { kudoTools, runTool, toolJsonSchema, type KudoTool } from "@kudo-dev/sdk/tools";
 
-const SETTINGS = ["KUDO_PRIVATE_KEY", "KUDO_AGENT_ID", "KUDO_NETWORK", "KUDO_RPC_URL"] as const;
+const SETTINGS = [
+  "KUDO_KEY_SOURCE",
+  "KUDO_PRIVATE_KEY",
+  "KUDO_DSTACK_KEY_PATH",
+  "KUDO_DSTACK_SOCKET",
+  "KUDO_AGENT_ID",
+  "KUDO_NETWORK",
+  "KUDO_RPC_URL",
+] as const;
 
 interface KudoState {
   kudo: Kudo;
   agentId?: bigint;
+  keySource: KeySource;
   tools: Map<string, KudoTool>;
 }
 
-const states = new WeakMap<IAgentRuntime, KudoState>();
+const states = new WeakMap<IAgentRuntime, Promise<KudoState>>();
 
-/** The Kudo client for a runtime, built once from its settings. */
-export function getKudo(runtime: IAgentRuntime): KudoState {
+/**
+ * The Kudo client for a runtime, built once from its settings.
+ *
+ * `KUDO_KEY_SOURCE` picks the signing key: `env` (default) uses
+ * `KUDO_PRIVATE_KEY`; `dstack` derives it inside a Phala TEE, so the key
+ * never exists outside the enclave. Choosing `dstack` where there is no
+ * dstack socket fails rather than falling back to another key.
+ */
+export function getKudo(runtime: IAgentRuntime): Promise<KudoState> {
   let state = states.get(runtime);
   if (state) return state;
   const env: Record<string, string> = {};
@@ -49,11 +65,15 @@ export function getKudo(runtime: IAgentRuntime): KudoState {
     const value = runtime.getSetting(key);
     if (value !== null && value !== undefined && String(value).trim()) env[key] = String(value);
   }
-  const { kudo, agentId } = kudoFromEnv(env);
-  const tools = new Map(
-    kudoTools({ kudo, defaultAgentId: agentId, mode: kudo.walletClient ? "sign" : "unsigned" }).map((t) => [t.name, t]),
-  );
-  state = { kudo, agentId, tools };
+  state = kudoFromEnvWithKeySource(env).then(({ kudo, agentId, keySource, warnings }) => {
+    for (const w of warnings) logger.warn(`[kudo] ${w}`);
+    const tools = new Map(
+      kudoTools({ kudo, defaultAgentId: agentId, mode: kudo.walletClient ? "sign" : "unsigned" }).map((t) => [t.name, t]),
+    );
+    return { kudo, agentId, keySource, tools };
+  });
+  // A failed build is not cached, so fixing a setting and retrying works.
+  state.catch(() => states.delete(runtime));
   states.set(runtime, state);
   return state;
 }
@@ -166,14 +186,14 @@ function toAction(tool: KudoTool): Action {
     description: `Kudo: ${tool.description}`,
     validate: async (runtime) => {
       try {
-        const { kudo } = getKudo(runtime);
+        const { kudo } = await getKudo(runtime);
         return !tool.writes || !!kudo.walletClient;
       } catch {
         return false;
       }
     },
     handler: async (runtime, message, state, options, callback) => {
-      const { tools } = getKudo(runtime);
+      const { tools } = await getKudo(runtime);
       const current = tools.get(tool.name) ?? tool;
 
       let args: Record<string, unknown> = {};
@@ -269,7 +289,7 @@ export const kudoProvider: Provider = {
   // it cannot keep a promise unprompted.
   get: async (runtime) => {
     try {
-      const { kudo, agentId } = getKudo(runtime);
+      const { kudo, agentId } = await getKudo(runtime);
       if (!kudo.address) {
         return { text: "Kudo: read-only (no KUDO_PRIVATE_KEY). The agent can read covenants but cannot mint or settle." };
       }
@@ -301,9 +321,9 @@ export const kudoPlugin: Plugin = {
   description: "Kudo covenants on Robinhood Chain: register an ERC-8004 identity, mint covenants, take open asks, link proof and read agent records.",
   config: Object.fromEntries(SETTINGS.map((k) => [k, process.env[k] ?? null])),
   init: async (_config, runtime) => {
-    const { kudo, agentId } = getKudo(runtime);
+    const { kudo, agentId, keySource } = await getKudo(runtime);
     logger.info(
-      `[kudo] ${kudo.network.chain.name}: ${kudo.address ? `signing as ${kudo.address}` : "read-only"}${agentId !== undefined ? `, agent ${agentId}` : ""}`,
+      `[kudo] ${kudo.network.chain.name}: ${kudo.address ? `signing as ${kudo.address} (key from ${keySource === "dstack" ? "the TEE via dstack" : "KUDO_PRIVATE_KEY"})` : "read-only"}${agentId !== undefined ? `, agent ${agentId}` : ""}`,
     );
   },
   actions: createKudoActions(),

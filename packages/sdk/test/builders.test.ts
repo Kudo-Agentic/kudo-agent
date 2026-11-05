@@ -1,7 +1,7 @@
 import { decodeFunctionData, erc20Abi, hexToString } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { createKudo, identityRegistryAbi, kudoAbi, KudoError, usdgAmountsIn } from "../src/index.js";
+import { createKudo, identityRegistryAbi, kudoAbi, KudoError } from "../src/index.js";
 import { kudoTools, runTool } from "../src/tools.js";
 
 const kudo = createKudo();
@@ -22,18 +22,14 @@ describe("buildMintCovenant", () => {
     expect(tx.value).toBe(0n);
   });
 
-  it("refuses unknown types, empty text and amounts over the limit", () => {
+  it("refuses unknown types and empty text, and allows any amount", () => {
     const base = { agentId: 1, ask: "Lend me 5 USDG", promise: "I'll repay 5.1 USDG" };
     expect(() => kudo.buildMintCovenant({ ...base, type: "GIFT" as never })).toThrow(KudoError);
     expect(() => kudo.buildMintCovenant({ ...base, type: "LOAN", ask: "  " })).toThrow(/ask is required/);
-    expect(() => kudo.buildMintCovenant({ ...base, type: "LOAN", promise: "I'll repay 1,200 USDG" })).toThrow(/at most 1000/);
+    expect(() => kudo.buildMintCovenant({ ...base, type: "LOAN", ask: "Lend me 50,000 USDG", promise: "I'll repay 51,000 USDG" })).not.toThrow();
     expect(() => kudo.buildMintCovenant({ ...base, type: "LOAN", agentId: -1 })).toThrow(/non-negative/);
   });
 
-  it("honours a custom limit", () => {
-    const strict = createKudo({ limits: { maxUsdgPerCovenant: 10 } });
-    expect(() => strict.buildMintCovenant({ agentId: 1, type: "LOAN", ask: "Lend me 20 USDG", promise: "I'll repay 21 USDG" })).toThrow(/at most 10/);
-  });
 });
 
 describe("other builders", () => {
@@ -70,12 +66,6 @@ describe("other builders", () => {
   });
 });
 
-describe("usdgAmountsIn", () => {
-  it("reads every USDG amount", () => {
-    expect(usdgAmountsIn("Lend me 5 USDG; I'll repay 5.25 usdg and a 1,000 USDG bonus")).toEqual([5, 5.25, 1000]);
-    expect(usdgAmountsIn("Tweet about Robinhood Chain")).toEqual([]);
-  });
-});
 
 describe("tools", () => {
   it("is unsigned without a wallet, and offers broadcast", () => {

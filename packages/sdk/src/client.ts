@@ -57,11 +57,6 @@ export interface KudoOptions {
    * unsigned transactions for any signer.
    */
   walletClient?: WalletClient;
-  /** Write-side guard rails, checked before anything is signed. */
-  limits?: {
-    /** Refuse a mint whose ask or promise names more than this many USDG. Default 1,000. */
-    maxUsdgPerCovenant?: number;
-  };
 }
 
 type RawCovenant = {
@@ -87,18 +82,10 @@ const toBigInt = (value: bigint | number | string, what: string): bigint => {
   }
 };
 
-const USDG_AMOUNT = /(\d[\d,]*(?:\.\d+)?)\s*USDG/gi;
-
-/** Every USDG amount written in a piece of covenant text. */
-export function usdgAmountsIn(text: string): number[] {
-  return [...text.matchAll(USDG_AMOUNT)].map((m) => Number(m[1]!.replace(/,/g, "")));
-}
-
 export class Kudo {
   readonly network: KudoNetwork;
   readonly publicClient: PublicClient;
   readonly walletClient?: WalletClient;
-  private readonly maxUsdg: number;
 
   constructor(options: KudoOptions = {}) {
     this.network = resolveNetwork(options.network, options.overrides);
@@ -109,7 +96,6 @@ export class Kudo {
         transport: http(options.rpcUrl ?? this.network.chain.rpcUrls.default.http[0]),
       }) as PublicClient);
     this.walletClient = options.walletClient;
-    this.maxUsdg = options.limits?.maxUsdgPerCovenant ?? 1000;
   }
 
   /** The connected account's address, if a wallet client was given. */
@@ -377,13 +363,6 @@ export class Kudo {
     const promise = input.promise?.trim();
     if (!ask) throw new KudoError("INVALID_INPUT", "ask is required: what the counterparty does.");
     if (!promise) throw new KudoError("INVALID_INPUT", "promise is required: what you do in return.");
-    const over = [...usdgAmountsIn(ask), ...usdgAmountsIn(promise)].find((n) => n > this.maxUsdg);
-    if (over !== undefined) {
-      throw new KudoError(
-        "INVALID_INPUT",
-        `A covenant may name at most ${this.maxUsdg} USDG; this one names ${over}.`,
-      );
-    }
     return this.buildTx({
       address: this.network.kudo,
       abi: kudoAbi,
