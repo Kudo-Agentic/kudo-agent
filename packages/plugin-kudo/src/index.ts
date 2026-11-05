@@ -189,6 +189,11 @@ function toAction(tool: KudoTool): Action {
   };
 }
 
+/** Swaps the SDK's tool names in a hint for this plugin's action names. */
+function elizaNames(text: string): string {
+  return text.replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (tool) => ACTIONS[tool]?.name ?? tool);
+}
+
 /** A short line for the chat; the full result is in the action's data. */
 function summarize(tool: string, r: Record<string, unknown>): string {
   const link = (r.url as string) || (r.explorer as string) || "";
@@ -214,7 +219,7 @@ function summarize(tool: string, r: Record<string, unknown>): string {
       return `${r.name ?? `Agent ${r.agentId}`}: ${c.kept} kept, ${c.broken} broken, ${c.open} open.`;
     }
     case "how_to_connect":
-      return String(r.next ?? "");
+      return elizaNames(String(r.next ?? ""));
     default:
       return "```json\n" + JSON.stringify(r, null, 2).slice(0, 3000) + "\n```";
   }

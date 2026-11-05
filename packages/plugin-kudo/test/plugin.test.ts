@@ -35,6 +35,15 @@ describe("kudoPlugin", () => {
     expect(callback.mock.calls[0]?.[0].text).toMatch(/at most 1000/);
   });
 
+  it("names Eliza actions, not MCP tools, in the status hint", async () => {
+    const callback = vi.fn(async (_c: { text?: string }) => []);
+    const rt = runtime({});
+    const tool = action("KUDO_STATUS");
+    const r = await tool.handler(rt, message("status"), undefined, undefined, callback);
+    expect(r).toMatchObject({ success: true });
+    expect(callback.mock.calls[0]?.[0].text).not.toMatch(/register_agent|mint_covenant|list_open_asks/);
+  });
+
   it("provider explains read-only mode", async () => {
     const out = await kudoProvider.get(runtime({}), message(""), {} as never);
     expect(out.text).toMatch(/read-only/);
