@@ -1,7 +1,12 @@
 import type { IAgentRuntime, Memory } from "@elizaos/core";
-import { describe, expect, it, vi } from "vitest";
+import { createServer, type Server } from "node:http";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { privateKeyToAccount } from "viem/accounts";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { kudoPlugin, kudoProvider } from "../src/index.js";
+import { getKudo, kudoPlugin, kudoProvider } from "../src/index.js";
 
 const runtime = (settings: Record<string, string>, modelReply = "{}") =>
   ({
@@ -28,11 +33,11 @@ describe("kudoPlugin", () => {
   });
 
   it("extracts arguments with the model and reports tool errors through the callback", async () => {
-    const rt = runtime({ KUDO_PRIVATE_KEY: "0x" + "11".repeat(32) }, '{"type":"LOAN","ask":"Lend me 2000 USDG","promise":"I will repay 2100 USDG","agentId":1}');
+    const rt = runtime({ KUDO_PRIVATE_KEY: "0x" + "11".repeat(32) }, '{"type":"GIFT","ask":"Lend me 2000 USDG","promise":"I will repay 2100 USDG","agentId":1}');
     const callback = vi.fn(async (_c: { text?: string }) => []);
     const result = await action("MINT_COVENANT").handler(rt, message("mint a big loan"), undefined, undefined, callback);
     expect(result).toMatchObject({ success: false });
-    expect(callback.mock.calls[0]?.[0].text).toMatch(/at most 1000/);
+    expect(callback.mock.calls[0]?.[0].text).toMatch(/LOAN|INVOICE|ADVANCE/);
   });
 
   it("names Eliza actions, not MCP tools, in the status hint", async () => {
@@ -72,4 +77,57 @@ describe.skipIf(process.env.KUDO_LIVE !== "1")("live", () => {
     expect(r).toMatchObject({ success: true });
     expect(callback.mock.calls[0]?.[0].text).toMatch(/Covenant 108 \(INVOICE\) is completed/);
   }, 30_000);
+});
+
+describe("KUDO_KEY_SOURCE", () => {
+  const DSTACK_KEY = "0x" + "ab".repeat(32);
+  const ENV_KEY = "0x" + "11".repeat(32);
+  const socket = join(mkdtempSync(join(tmpdir(), "dstack-")), "dstack.sock");
+  let server: Server;
+  let asked: { path?: string } = {};
+
+  beforeAll(async () => {
+    // Stand-in for Phala's dstack guest agent.
+    server = createServer((req, res) => {
+      let body = "";
+      req.on("data", (d) => (body += d)).on("end", () => {
+        if (req.url === "/GetKey") {
+          asked = JSON.parse(body);
+          return res.end(JSON.stringify({ key: DSTACK_KEY.slice(2), signature_chain: [] }));
+        }
+        res.statusCode = 404;
+        res.end();
+      });
+    });
+    await new Promise<void>((r) => server.listen(socket, r));
+  });
+  afterAll(() => server.close());
+
+  it("defaults to KUDO_PRIVATE_KEY", async () => {
+    const { kudo, keySource } = await getKudo(runtime({ KUDO_PRIVATE_KEY: ENV_KEY }));
+    expect(keySource).toBe("env");
+    expect(kudo.address).toBe(privateKeyToAccount(ENV_KEY as `0x${string}`).address);
+  });
+
+  it("uses the dstack key when set to dstack, ignoring KUDO_PRIVATE_KEY", async () => {
+    const { kudo, keySource } = await getKudo(runtime({ KUDO_KEY_SOURCE: "dstack", KUDO_DSTACK_SOCKET: socket, KUDO_PRIVATE_KEY: ENV_KEY }));
+    expect(keySource).toBe("dstack");
+    expect(kudo.address).toBe(privateKeyToAccount(DSTACK_KEY as `0x${string}`).address);
+    expect(asked.path).toBe("kudo/agent");
+  });
+
+  it("derives from a custom path", async () => {
+    await getKudo(runtime({ KUDO_KEY_SOURCE: "dstack", KUDO_DSTACK_SOCKET: socket, KUDO_DSTACK_KEY_PATH: "my/agent" }));
+    expect(asked.path).toBe("my/agent");
+  });
+
+  it("refuses to start without a dstack socket instead of falling back", async () => {
+    const rt = runtime({ KUDO_KEY_SOURCE: "dstack", KUDO_DSTACK_SOCKET: join(tmpdir(), "no-such.sock"), KUDO_PRIVATE_KEY: ENV_KEY });
+    await expect(kudoPlugin.init!({}, rt)).rejects.toThrow(/Cannot reach dstack/);
+    expect(await action("MINT_COVENANT").validate(rt, message("mint"))).toBe(false);
+  });
+
+  it("rejects an unknown source", async () => {
+    await expect(getKudo(runtime({ KUDO_KEY_SOURCE: "tee" }))).rejects.toThrow(/"env" or "dstack"/);
+  });
 });

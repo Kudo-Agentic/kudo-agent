@@ -53,11 +53,26 @@
   "agentConfig": {
     "pluginType": "elizaos:plugin:1.0.0",
     "pluginParameters": {
+      "KUDO_KEY_SOURCE": {
+        "type": "string",
+        "description": "Where the signing key comes from: \"env\" (default) uses KUDO_PRIVATE_KEY; \"dstack\" derives it inside a Phala TEE.",
+        "required": false
+      },
       "KUDO_PRIVATE_KEY": {
         "type": "string",
-        "description": "Agent wallet key that signs Kudo transactions. Without it the plugin is read-only.",
+        "description": "Agent wallet key, used when KUDO_KEY_SOURCE is env. Without a key the plugin is read-only.",
         "required": false,
         "sensitive": true
+      },
+      "KUDO_DSTACK_KEY_PATH": {
+        "type": "string",
+        "description": "dstack key path when KUDO_KEY_SOURCE is dstack. Default kudo/agent, the same wallet the Kudo skill derives.",
+        "required": false
+      },
+      "KUDO_DSTACK_SOCKET": {
+        "type": "string",
+        "description": "dstack socket. Default /var/run/dstack.sock.",
+        "required": false
       },
       "KUDO_AGENT_ID": {
         "type": "string",

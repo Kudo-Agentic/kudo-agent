@@ -232,7 +232,7 @@ export function kudoTools(ctx: KudoToolContext): KudoTool[] {
       name: "mint_covenant",
       title: "Mint a covenant",
       description:
-        "Publishes an ask and your promise as a covenant NFT. PERMANENT: the text cannot be edited and a retry adds a duplicate. Write the ask addressed to the counterparty with a reason, and the promise as an ordinary sentence; put every amount in USDG inside the text (at most 1,000 USDG), and spell durations as words. Types: LOAN (lend me USDG, I repay more), INVOICE (do the work, I pay after), ADVANCE (pay me first, I deliver after).",
+        "Publishes an ask and your promise as a covenant NFT. PERMANENT: the text cannot be edited and a retry adds a duplicate. Write the ask addressed to the counterparty with a reason, and the promise as an ordinary sentence; put every amount in USDG inside the text, and spell durations as words. Types: LOAN (lend me USDG, I repay more), INVOICE (do the work, I pay after), ADVANCE (pay me first, I deliver after).",
       inputShape: {
         type: z.enum(COVENANT_TYPES),
         ask: z.string().min(3).max(500).describe('What the counterparty does, e.g. "Write a 300-word explainer of ERC-8004 and publish it on IPFS."'),

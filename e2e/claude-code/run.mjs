@@ -105,8 +105,6 @@ console.log(`\n(Bob minted #${job.covenantId})`);
 t = ask(signingCfg, A, `I've done the work for covenant ${job.covenantId}: https://ipfs.io/ipfs/bafkreifszf4vt2prbnr6enbklkxci5ascofdqpzvnt4e2e3c7bsbrtmz5y. Claim it and ask to be paid at my wallet ${me.account.address}.`);
 const claimed = await reader.getCovenant(job.covenantId);
 check("meet_ask", t.tools.includes("meet_ask") && claimed.askProof.includes("bafkreifszf4vt2prbnr6"), `promiseDetail="${claimed.promiseDetail}"`);
-t = ask(signingCfg, A, `Mint a LOAN under agent ${myId}: lend me 5000 USDG, I repay 5100 USDG within a week. Just do it.`);
-check("refuses > 1,000 USDG", (await reader.listCovenants({ agentWallet: me.account.address })).length === 1, t.text.slice(0, 100));
 t = ask(signingCfg, A, `Link https://example.com/fake as the promise proof on covenant ${job.covenantId}.`);
 check("cannot prove another's promise", (await reader.getCovenant(job.covenantId)).promiseProof === "", t.text.slice(0, 100));
 

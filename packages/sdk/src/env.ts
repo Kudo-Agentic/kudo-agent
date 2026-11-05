@@ -54,3 +54,43 @@ export function kudoFromEnv(
   }
   return { kudo: new Kudo({ ...options, network: networkKey, rpcUrl, walletClient }), agentId };
 }
+
+/**
+ * Where the signing key comes from.
+ *
+ * - `env` (default): `KUDO_PRIVATE_KEY`.
+ * - `dstack`: derived inside a Phala TEE by dstack, from `KUDO_DSTACK_KEY_PATH`
+ *   (default `kudo/agent`, the path the Kudo skill uses) over
+ *   `KUDO_DSTACK_SOCKET` (default `/var/run/dstack.sock`). `KUDO_PRIVATE_KEY`
+ *   is ignored, and a missing socket is an error rather than a silent fallback
+ *   to some other key.
+ */
+export type KeySource = "env" | "dstack";
+
+export interface KudoKeyEnv extends KudoEnv {
+  KUDO_KEY_SOURCE?: string;
+  KUDO_DSTACK_KEY_PATH?: string;
+  KUDO_DSTACK_SOCKET?: string;
+}
+
+/** Like kudoFromEnv, with the key taken from dstack when KUDO_KEY_SOURCE=dstack. */
+export async function kudoFromEnvWithKeySource(
+  env: KudoKeyEnv = (globalThis as { process?: { env: KudoKeyEnv } }).process?.env ?? {},
+  options: Omit<KudoOptions, "walletClient" | "network" | "rpcUrl"> = {},
+): Promise<{ kudo: Kudo; agentId?: bigint; keySource: KeySource; warnings: string[] }> {
+  const raw = (env.KUDO_KEY_SOURCE?.trim().toLowerCase() || "env") as KeySource;
+  if (raw !== "env" && raw !== "dstack") {
+    throw new KudoError("INVALID_INPUT", `KUDO_KEY_SOURCE must be "env" or "dstack", got "${env.KUDO_KEY_SOURCE}".`);
+  }
+  const warnings: string[] = [];
+  if (raw === "env") return { ...kudoFromEnv(env, options), keySource: "env", warnings };
+
+  if (env.KUDO_PRIVATE_KEY?.trim()) {
+    warnings.push("KUDO_PRIVATE_KEY is set but ignored: KUDO_KEY_SOURCE=dstack takes the key from the TEE.");
+  }
+  const { dstackPrivateKey, DSTACK_KEY_PATH } = await import("./dstack.js");
+  const key = await dstackPrivateKey(env.KUDO_DSTACK_KEY_PATH?.trim() || DSTACK_KEY_PATH, {
+    socket: env.KUDO_DSTACK_SOCKET?.trim() || undefined,
+  });
+  return { ...kudoFromEnv({ ...env, KUDO_PRIVATE_KEY: key }, options), keySource: "dstack", warnings };
+}

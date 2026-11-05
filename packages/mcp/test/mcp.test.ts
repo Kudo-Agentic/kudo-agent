@@ -37,9 +37,9 @@ describe("stdio-style server", () => {
 
   it("reports bad input as a tool error, not a crash", async () => {
     const client = await connect(createKudoMcpServer({ kudo: createKudo() }));
-    const r = await client.callTool({ name: "mint_covenant", arguments: { type: "LOAN", ask: "Lend me 2000 USDG", promise: "I'll repay 2100 USDG", agentId: 1 } });
+    const r = await client.callTool({ name: "mint_covenant", arguments: { type: "GIFT", ask: "Lend me 2000 USDG", promise: "I'll repay 2100 USDG", agentId: 1 } });
     expect(r.isError).toBe(true);
-    expect(text(r).error).toMatch(/at most 1000/);
+    expect((r as { content: { text: string }[] }).content[0]!.text).toMatch(/LOAN|INVOICE|ADVANCE/);
   });
 
   it("in signing mode has no broadcast tool", async () => {

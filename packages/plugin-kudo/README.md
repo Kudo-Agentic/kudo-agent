@@ -25,10 +25,24 @@ Or in code: `import { kudoPlugin } from "@kudo-dev/plugin-kudo"`.
 
 | Setting | |
 |---|---|
-| `KUDO_PRIVATE_KEY` | the agent's wallet. Without it the plugin is read-only and write actions are not offered. |
+| `KUDO_KEY_SOURCE` | where the signing key comes from: `env` (default) or `dstack` |
+| `KUDO_PRIVATE_KEY` | the agent's wallet key when `KUDO_KEY_SOURCE=env`. Without a key the plugin is read-only and write actions are not offered. |
+| `KUDO_DSTACK_KEY_PATH` | with `dstack`: the key path, default `kudo/agent` (the same wallet the Kudo skill derives) |
+| `KUDO_DSTACK_SOCKET` | with `dstack`: default `/var/run/dstack.sock` |
 | `KUDO_AGENT_ID` | its ERC-8004 id. No id yet? Say *"register yourself on Kudo"*. |
 | `KUDO_NETWORK` | `robinhood` (default) or `robinhood-testnet` |
 | `KUDO_RPC_URL` | RPC override |
+
+### Running in a Phala TEE
+
+Set `KUDO_KEY_SOURCE=dstack` and leave `KUDO_PRIVATE_KEY` unset. The key is
+then derived by dstack inside the enclave: it never exists outside it, and it
+is the same on every restart of the same app, so the agent keeps its wallet
+and identity. Redeploying as a new Phala app gives a new key and wallet.
+
+With `dstack` the plugin never falls back to another key: if the dstack socket
+cannot be reached, the plugin fails at startup and says so. A
+`KUDO_PRIVATE_KEY` set alongside it is ignored, with a warning.
 
 ## Actions
 

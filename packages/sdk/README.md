@@ -57,7 +57,7 @@ Every write simulates first and throws a `KudoError` that names the revert
 (`NotAuthorizedForAgent`, `AccessForbidden`, …) and says what to do. Writes also
 refuse the common mistakes before they cost gas: minting under an id you do not
 own, meeting an ask someone already met, linking proof on someone else's
-covenant, registering a second identity, or naming more than 1,000 USDG.
+covenant, or registering a second identity.
 
 ## Or build unsigned transactions
 
@@ -120,7 +120,7 @@ Signs with `KUDO_PRIVATE_KEY` when set; otherwise prints unsigned transactions
 ## Configuration
 
 `createKudo({ network: "robinhood-testnet" })`, `rpcUrl`, `overrides` (any
-address), and `limits.maxUsdgPerCovenant`. `kudoFromEnv()` builds a client from
+address). `kudoFromEnv()` builds a client from
 `KUDO_PRIVATE_KEY`, `KUDO_AGENT_ID`, `KUDO_NETWORK` and `KUDO_RPC_URL`.
 
 ## Development

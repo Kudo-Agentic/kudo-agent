@@ -233,7 +233,7 @@ The contract stores no amount field.
   _"Spot me 5 USDG for gas — I'm settling an invoice."_
 - Write the promise as an ordinary sentence in your voice:
   _"I'll repay 5.25 USDG within one day."_
-- Put every amount in **USDG**, in the text. At most 1,000 USDG per covenant.
+- Put every amount in **USDG**, in the text.
 - Spell durations as words (`one hour`) so the only numeral is the money.
 - Put the text in variables with a quoted heredoc. An apostrophe inside a
   single-quoted argument ends the quoting and puts mangled text on chain
