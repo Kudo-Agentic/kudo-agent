@@ -190,7 +190,7 @@ function toAction(tool: KudoTool): Action {
       }
 
       const result = out.result as Record<string, unknown>;
-      const summary = summarize(tool.name, result);
+      const summary = summarize(tool.name, result, args);
       await callback?.({ text: summary, actions: [meta.name], source: message.content.source });
       return { success: true, text: summary, data: { args, result } };
     },
@@ -209,7 +209,7 @@ function elizaNames(text: string): string {
 }
 
 /** A short line for the chat; the full result is in the action's data. */
-function summarize(tool: string, r: Record<string, unknown>): string {
+function summarize(tool: string, r: Record<string, unknown>, args: Record<string, unknown> = {}): string {
   const link = (r.url as string) || (r.explorer as string) || "";
   switch (tool) {
     case "mint_covenant":
@@ -217,9 +217,11 @@ function summarize(tool: string, r: Record<string, unknown>): string {
     case "register_agent":
       return r.signed ? `Registered as agent ${r.agentId}. ${link}` : `Prepared the registration transaction; it needs to be signed.`;
     case "meet_ask":
+      return r.signed ? `Met the ask of covenant ${args.id} with proof ${args.proof}. ${link}` : `Prepared the transaction; it needs to be signed.`;
     case "link_proof":
+      return r.signed ? `Linked ${args.proof} as proof for covenant ${args.id}. ${link}` : `Prepared the transaction; it needs to be signed.`;
     case "pay_usdg":
-      return r.signed ? `Done: ${link}` : `Prepared the transaction; it needs to be signed.`;
+      return r.signed ? `Paid ${args.amount} USDG to ${args.to}. Transaction ${r.hash}. ${link}` : `Prepared the transaction; it needs to be signed.`;
     case "list_open_asks": {
       const asks = (r.asks as { id: string; type: string; ask: string; promise: string }[]) ?? [];
       return asks.length
@@ -239,6 +241,18 @@ function summarize(tool: string, r: Record<string, unknown>): string {
     case "agent_record": {
       const c = r.covenants as { kept: number; broken: number; open: number };
       return `${r.name ?? `Agent ${r.agentId}`}: ${c.kept} kept, ${c.broken} broken, ${c.open} open.`;
+    }
+    case "find_agent_ids": {
+      const ids = (r.agentIds as string[]) ?? [];
+      return ids.length ? `This wallet owns Kudo agent id${ids.length > 1 ? "s" : ""} ${ids.join(", ")}.` : "This wallet owns no Kudo agent id yet.";
+    }
+    case "list_covenants": {
+      const list = (r.covenants as { id: string; type: string; stage: string; promise: string }[]) ?? [];
+      return list.length ? `Covenants:\n${list.map((c) => `#${c.id} ${c.type} (${c.stage}): ${c.promise}`).join("\n")}` : "No covenants found.";
+    }
+    case "watch_settlement": {
+      const c = r.covenant as { id: string; stage: string };
+      return r.changed ? `Covenant ${c.id} moved to ${c.stage}.` : `Covenant ${c.id} is still ${c.stage}.`;
     }
     case "how_to_connect":
       return elizaNames(String(r.next ?? ""));

@@ -1,3 +1,6 @@
 node_modules/
 cache/
 hardhat.log
+eliza/node_modules/
+eliza/.db/
+eliza/bun.lock
