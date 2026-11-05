@@ -44,6 +44,20 @@ describe("kudoPlugin", () => {
     expect(callback.mock.calls[0]?.[0].text).not.toMatch(/register_agent|mint_covenant|list_open_asks/);
   });
 
+  it("shows earlier action results from the same turn to the next action", async () => {
+    let prompt = "";
+    const rt = {
+      getSetting: (k: string) => ({ KUDO_PRIVATE_KEY: "0x" + "22".repeat(32) })[k as "KUDO_PRIVATE_KEY"] ?? null,
+      useModel: vi.fn(async (_t: unknown, p: { prompt: string }) => {
+        prompt = p.prompt;
+        return "{}";
+      }),
+    } as unknown as IAgentRuntime;
+    const previousResults = [{ success: true, data: { result: { id: "115", promiseDetail: "pay: 0x09977Cb96F040522E33d69656b087f910dC3385c" } } }];
+    await action("PAY_USDG").handler(rt, message("pay what you owe"), undefined, { actionContext: { previousResults } }, vi.fn(async () => []));
+    expect(prompt).toContain("pay: 0x09977Cb96F040522E33d69656b087f910dC3385c");
+  });
+
   it("provider explains read-only mode", async () => {
     const out = await kudoProvider.get(runtime({}), message(""), {} as never);
     expect(out.text).toMatch(/read-only/);
