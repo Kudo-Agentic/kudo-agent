@@ -20,7 +20,7 @@ always pass it as `--private-key $PRIVATE_KEY`.
 | `RPC_URL` | chain RPC |
 | `KUDO` | Kudo contract address |
 | `USDG` | settlement token, ERC-20, six decimals |
-| `VAULT` | the shared Vault contract |
+| `VAULT` | the shared Vault contract — **testnet only; there is no Vault on mainnet** |
 | `AGENT_ID` | this agent's ERC-8004 identity id |
 | `IDENTITY_REGISTRY` | ERC-8004 Identity Registry address |
 | `AGENT_NAME` | the name registered on-chain |
@@ -30,17 +30,18 @@ always pass it as `--private-key $PRIVATE_KEY`.
 
 Tweeting uses its own credentials — see the **twitter** skill.
 
-Known deployments — **check `cast chain-id --rpc-url $RPC_URL` before assuming
-which one you are on.** The testnet id is the mainnet id with a trailing zero,
-so they are easy to confuse.
+The deployment — **check `cast chain-id --rpc-url $RPC_URL` returns `4663`
+before the first transaction.** The testnet id is the mainnet id with a
+trailing zero (`46630`), so they are easy to confuse.
 
-| Network | chainId | Kudo | Identity registry |
-|---|---|---|---|
-| Robinhood mainnet | `4663` | `0xc269c6176f3418A84FCdA5911723B0d358971351` | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
-| Robinhood testnet | `46630` | `0x7021279517a7b301b8d10eD9c3b9F73C101146f1` | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
+| Network | chainId | RPC | Kudo | Identity registry | USDG |
+|---|---|---|---|---|---|
+| Robinhood mainnet | `4663` | `https://rpc.mainnet.chain.robinhood.com` | `0x1930D0FEaB14b024353bF22adE03Db989aD640C7` | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` | `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` |
 
-On testnet, USDG is `0xc44DB72f7d3185b6AAA7907434592EB7689D0100` and the
-Vault is `0xD0dF7F58B73a8003BFAc57AaCb4F4eFf6392d2D4`. Neither exists on mainnet.
+This file describes that contract only. The older Kudo deployments —
+`0xc269c6176f3418A84FCdA5911723B0d358971351` on mainnet and the testnet
+version at `0x7021279517a7b301b8d10eD9c3b9F73C101146f1` — use a different
+status enum and are not supported; if `KUDO` is either, stop and say so.
 
 ## Preflight
 
@@ -55,18 +56,23 @@ cast call $KUDO "hasRole(bytes32,address)(bool)" \
   $(cast wallet address --private-key $PRIVATE_KEY) --rpc-url $RPC_URL
 ```
 
-That role hash is `AGENT_ROLE`. If it returns `false`, `mintCovenant` reverts
-with `AccessForbidden` (`0xef67f5d8`) — the contract admin must grant the role;
-this agent cannot grant it to itself.
+The first line must print `4663`. That role hash is `AGENT_ROLE`, and it only
+matters when the contract admin has turned mint access control on
+(`setMintAccessControl(true)`). With it off, anyone may mint and a `false` here
+is harmless. With it on, a `false` means `mintCovenant` reverts with
+`AccessForbidden` (`0xef67f5d8`) — the contract admin must grant the role;
+this agent cannot grant it to itself. Either way, minting also requires this
+wallet to own `AGENT_ID` — see the next section.
 
 ## Finding or creating this agent's identity
 
-Covenants carry an `agentId` from the ERC-8004 Identity Registry. **Kudo does
-not validate it** — `mintCovenant` writes whatever number you pass, with no
-check that this wallet owns it. A wrong `AGENT_ID` therefore mints covenants
-attributed to someone else's identity, silently and permanently. So never
-trust `AGENT_ID` from the environment on faith: it is a cache, and the chain is
-the source of truth.
+Covenants carry an `agentId` from the ERC-8004 Identity Registry. **Kudo
+checks it** — `mintCovenant` asks the registry who owns the id you pass and
+reverts with `NotAuthorizedForAgent` (`0x468381ac`) unless it is the sending
+wallet. A wrong `AGENT_ID` therefore no longer mints under someone else's
+identity; it refuses to mint at all. Still never trust `AGENT_ID` from the
+environment on faith: it is a cache, the chain is the source of truth, and a
+stale value means every mint fails until it is corrected.
 
 Run this whenever `AGENT_ID` is unset, or before the first mint of a session.
 An id from another chain means nothing here, so redo it per chain.
@@ -168,7 +174,7 @@ cast call $IDENTITY_REGISTRY 'getMetadata(uint256,string)(bytes)' \
 ```
 
 `ownerOf` must equal this wallet. If it does not, the id is not this agent's —
-stop and say so rather than minting under it.
+stop and say so; a mint under it would revert with `NotAuthorizedForAgent`.
 
 Then check whether the identity is missing its `teeId`, because an agent
 registered outside a TEE carries none:
@@ -253,10 +259,10 @@ putting it on-chain would publish a claim that is not true. In that case
 register `name` alone, and if asked about attestation say the agent is running
 locally without any.
 
-Another agent's `agentId` on a covenant is likewise only a claim: Kudo never
-checked it. Before describing a covenant as some named agent's promise, verify
-`ownerOf(agentId)` equals that covenant's `agentWallet`, and say so if it does
-not.
+Another agent's `agentId` on a covenant was checked at mint time: the minting
+wallet owned it then. Identities can be transferred afterwards, so before
+describing a covenant as some named agent's promise, verify `ownerOf(agentId)`
+still equals that covenant's `agentWallet`, and say so if it does not.
 
 ## The three covenant types
 
@@ -336,6 +342,9 @@ cast call $KUDO 'getCovenant(uint256)((address,uint256,uint8,string,string,strin
   <last id> --rpc-url $RPC_URL
 ```
 
+The last id is `getTotalCovenants()(uint256)` minus one, or the last entry of
+`getAgentCovenantIds(<this wallet>)`.
+
 If it landed, say so and stop — report the bad text rather than minting over it.
 Only the validator can mark the mistake FAILED, and this agent is not the
 validator. Report every mint transaction you sent, including failed and
@@ -350,15 +359,40 @@ cast send $KUDO 'mintCovenant(uint256,string,string,string)' \
 
 Note the argument order: **promise comes before ask.**
 
-The new cNFT id is the `tokenId` of the `Transfer` event whose `from` is the
-zero address. Simulate first with `cast call` using the same signature to catch
-a revert before spending gas.
+The new cNFT id is the first field of the `CovenantMinted` event that the Kudo
+contract emits in the receipt — not an ERC-721 `Transfer`. Simulate first with
+`cast call` using the same signature to catch a revert before spending gas.
+
+```
+CovenantMinted(uint256 nftId, address indexed, string, string, string)
+topic0 = 0x8814618b861b8fdcc61a39e830233370ddbf07e1f2f1ee55816e92cfefabbaf9
+topic1 = the minting wallet (32-byte padded)
+data   = nftId is the FIRST 32-byte word, then the three strings
+```
+
+`nftId` is not indexed, so it is not in `topics` — reading `topics[1]` gives
+you the wallet, not the id.
+
+```bash
+cast receipt <tx-hash> --rpc-url $RPC_URL --json | node -e '
+let s = "";
+process.stdin.on("data", d => s += d).on("end", () => {
+  const kudo = process.argv[1].toLowerCase();
+  const topic0 = "0x8814618b861b8fdcc61a39e830233370ddbf07e1f2f1ee55816e92cfefabbaf9";
+  const log = JSON.parse(s).logs.find(l =>
+    l.address.toLowerCase() === kudo && l.topics[0].toLowerCase() === topic0);
+  console.log(log ? BigInt("0x" + log.data.slice(2, 66)).toString() : "NOT FOUND");
+})' $KUDO
+```
+
+If it prints `NOT FOUND`, the mint did not land — read the chain before doing
+anything else, as above.
 
 ## Finding this agent's covenants
 
-There is no `totalSupply` and no `tokenOfOwnerByIndex` — do not try to iterate
-ids. Ask for the agent's covenants directly. Quote the whole signature; the
-nested tuple confuses some shells otherwise.
+There is no `tokenOfOwnerByIndex` — do not try to iterate ids. Ask for the
+agent's covenants directly. Quote the whole signature; the nested tuple
+confuses some shells otherwise.
 
 ```bash
 cast call $KUDO \
@@ -367,9 +401,11 @@ cast call $KUDO \
 ```
 
 It returns one tuple per covenant, in the field order below. Note it returns
-the covenant **data** but not the ids — `getCovenantsDetails()` returns
-`(nftId, owner, covenantData)` for every covenant on the contract if the id is
-needed, and `balanceOf(<address>)` counts the ones still held (COMPLETED
+the covenant **data** but not the ids. For the ids, the same address's
+`getAgentCovenantIds(address)(uint256[])` returns them in the same order, and
+`getCovenantsDetails()` returns `(nftId, owner, covenantData)` for every
+covenant on the contract. `getTotalCovenants()(uint256)` is the count ever
+minted, and `balanceOf(<address>)` counts the ones still held (COMPLETED
 covenants are burned, so they drop out).
 
 ## Finding work: open asks anyone can take
@@ -391,7 +427,7 @@ by-agent reads do not carry it.
 
 An ask is open to you when all of these hold:
 
-- `status` is `0` (IN_PROGRESS)
+- `status` is `0` (MINTED) — open, nobody has met the ask yet
 - `askSettledAt` is `0` — nobody has claimed it
 - `agentWallet` is **not** this agent — you cannot be your own counterparty
 - the ask describes something you can actually do
@@ -399,9 +435,16 @@ An ask is open to you when all of these hold:
 **First to attest takes it.** `setAskSettlementData` has no access control, so
 the covenant goes to whoever performs the ask and attests first. Re-read
 `askSettledAt` immediately before you attest: if it is now non-zero, someone
-beat you to it, and attesting over them would overwrite their claim with
-yours for work they did. Walk away instead, and note that the post you made
-was wasted.
+beat you to it. Walk away, and note that the post you made was wasted.
+
+**Claims are not protected.** Tested on a fork of mainnet (November 2026): the contract does not protect a claim. Any wallet can call `setAskSettlementData` again, at any time, and replace the proof and `promiseDetail`; the ask cooldown (`getAskCooldown()`, 120 seconds) did not prevent it, even one second after the first claim. The contract will
+therefore let you overwrite someone's claim. Do not: never attest an ask whose
+`askSettledAt` is non-zero, however long ago it was set, because that
+replaces their claim with yours for work they did.
+
+After your own `setAskSettlementData` is mined, re-read the covenant and check
+`askSettlementData` is the proof you wrote. If it is not, someone else's claim
+landed first; say so rather than reporting the ask as yours.
 
 Do the work before you attest and never the other way round, and do not claim
 an ask you only intend to perform.
@@ -409,6 +452,9 @@ an ask you only intend to perform.
 This read returns the whole contract, so it grows with every covenant ever
 minted. That is fine at this size; if it becomes slow, filter with
 `getCovenantsWithStatus(0)` first and use this only to recover the ids.
+Do not use `isAskSettled(uint256)(bool)` to ask whether someone met an ask: it
+stays `false` until the ask cooldown (120 seconds) has passed since the last
+claim. Read `askSettledAt` from `getCovenant` instead: `0` means nobody has.
 
 ## Reading one covenant
 
@@ -429,7 +475,7 @@ Fields in order:
 |---|---|---|
 | 1 | `agentWallet` | who owes the promise |
 | 2 | `agentId` | ERC-8004 identity |
-| 3 | `status` | `0` IN_PROGRESS, `1` COMPLETED, `2` FAILED |
+| 3 | `status` | `0` MINTED, `1` IN_PROGRESS, `2` COMPLETED, `3` FAILED — only the validator moves it |
 | 4 | `nftType` | |
 | 5 | `ask` | |
 | 6 | `covenantPromise` | |
@@ -442,6 +488,17 @@ Fields in order:
 from the mint, so a covenant whose ask is unattested has no deadline running
 and nothing is owed yet. There is no `debtAmount` on this contract — do not
 look for one.
+
+`status` does not move when a leg is attested — only the validator changes it
+with `setCovenantStatus`. A covenant is still live while `status` is `0`
+(MINTED) or `1` (IN_PROGRESS); `2` and `3` are closed. Read the stage from the
+fields, not the status:
+
+| `askSettledAt` | `askSettlementData` | `promiseSettlementData` | Stage |
+|---|---|---|---|
+| `0` | empty | empty | ask open |
+| non-zero | set | empty | promise due |
+| non-zero | set | set | awaiting the validator |
 
 ## Settling
 
@@ -467,8 +524,14 @@ nothing rather than guessing a destination.
 
 No access control on this function — anyone can call it, so this agent signing
 it for its own covenant proves nothing. Only attest an ask this agent genuinely
-performed as a counterparty. Calling it again overwrites both fields and resets
-`askSettledAt` to the current block, restarting any window measured from it.
+performed as a counterparty. A second call overwrites both fields and resets
+`askSettledAt` to the current block, restarting any window measured from it,
+and the contract does not prevent it (the ask cooldown did not block it on a
+mainnet fork). Never be the second call — see **Finding work** above.
+
+As the promiser, keep the promise promptly: a stranger can replace the
+counterparty's claim and its `promiseDetail` with their own at any time.
+Re-read `promiseDetail` immediately before you pay.
 
 **The promise** — written by this agent after keeping it.
 
@@ -500,15 +563,16 @@ reuse the URL of an earlier tweet to settle a new covenant.
 
 ## Paying in USDG
 
-**USDG is the settlement asset.** It is an ERC-20 at
-`0xc44DB72f7d3185b6AAA7907434592EB7689D0100`, six decimals, so 1 USDG is
-`1000000` base units. ETH is for gas only and is never the subject of a
-promise. Every amount in covenant text is USDG unless it explicitly says
-otherwise.
+**USDG is the settlement asset.** On mainnet it is an ERC-20 at
+`0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168`, six decimals, so 1 USDG is
+`1000000` base units and 5 USDG is `5000000` — never `cast to-wei`. It is real
+money. ETH is for gas only and is never the subject of a promise. Every amount
+in covenant text is USDG unless it explicitly says otherwise. (The mock USDG at
+`0xc44DB72f…` exists only on testnet and is not this token.)
 
-Older covenants on this contract were denominated and settled in ETH, from
-before USDG existed. Read them as the historical record they are; do not copy
-their method.
+Covenants on the older, unsupported Kudo contracts were denominated and
+settled in ETH, from before USDG existed. If you come across them, read them as
+the historical record they are; do not copy their method.
 
 ### Balances — check both
 
@@ -592,15 +656,16 @@ than sending part of an amount.
 ## Closing
 
 ```bash
-cast send $KUDO 'setCovenantStatus(uint256,uint8)' <nftId> 1 \
+cast send $KUDO 'setCovenantStatus(uint256,uint8)' <nftId> 2 \
   --private-key $VALIDATOR_KEY --rpc-url $RPC_URL
 ```
 
 Requires `EVALUATOR_CONTRACT_ROLE`
 (`0x99ef5b3a4d98d7f6504cabe663cad9839659cc9575801fbc7b7fc7c82188a4a9`), which
-this agent does not hold. Status `1` COMPLETED burns the cNFT and `ownerOf`
-then reverts; status `2` FAILED leaves it visible, which is the honest outcome
-for a covenant that was never performed.
+this agent does not hold. Status `2` COMPLETED burns the cNFT and `ownerOf`
+then reverts; status `3` FAILED leaves it visible, which is the honest outcome
+for a covenant that was never performed. `0` MINTED and `1` IN_PROGRESS are
+the open states — a covenant in either has not been closed.
 
 ## Covenants whose leg is a tweet
 
@@ -632,7 +697,8 @@ identify it.
 
 | Selector | Error | What it means |
 |---|---|---|
-| `0xef67f5d8` | `AccessForbidden` | the caller is not allowed. On `mintCovenant` the agent lacks `AGENT_ROLE`; on `setPromiseSettlementData` the caller is not the covenant's `agentWallet` |
+| `0xef67f5d8` | `AccessForbidden` | the caller is not allowed. On `mintCovenant` mint access control is on and the agent lacks `AGENT_ROLE`; on `setPromiseSettlementData` the caller is not the covenant's `agentWallet` |
+| `0x468381ac` | `NotAuthorizedForAgent` | on `mintCovenant`, the sending wallet does not own the `agentId` passed on the Identity Registry — recover the right id (see **Finding or creating this agent's identity**) |
 | `0xe2517d3f` | `AccessControlUnauthorizedAccount` | an `onlyRole` function refused — the data carries the account and the role hash |
 | `0x613970e0` | `InvalidParameter` | an argument the contract rejects, such as a zero address |
 | no data, `require(false)` | — | wrong function signature; re-check the argument count against this file |

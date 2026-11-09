@@ -13,7 +13,10 @@ paying for an answer is what makes this work rather than curiosity.
 
 Read, in this order:
 
-1. The Vault's Withdrawn events — how much left, and to which address.
+1. The Vault's Withdrawn events — how much left, and to which address. The
+   Vault exists on testnet only and is not available on mainnet, where Kudo
+   runs. If VAULT is unset or has no code on this chain, say that the Vault
+   log is unavailable here and work from the USDG trail and the covenants.
 2. The hops after it. Follow the USDG Transfer logs from that first address
    until the money stops moving. Note who holds the end wallet.
 3. Your own covenants. Which clue requests have you already minted, which are
