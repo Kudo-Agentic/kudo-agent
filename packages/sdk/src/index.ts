@@ -1,12 +1,10 @@
 export { Kudo, createKudo, type KudoOptions } from "./client.js";
-export { kudoFromEnv, kudoFromEnvWithKeySource, type KudoEnv, type KudoKeyEnv, type KeySource } from "./env.js";
 export { dstackAppId, dstackPrivateKey, DSTACK_KEY_PATH, DSTACK_SOCKET, type DstackOptions } from "./dstack.js";
 export { KudoError, REVERTS, toKudoError, type KudoErrorCode } from "./errors.js";
 export {
   networks,
   resolveNetwork,
   robinhood,
-  robinhoodTestnet,
   type CovenantStatus,
   type KudoNetwork,
   type NetworkKey,

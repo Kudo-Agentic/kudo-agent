@@ -15,7 +15,9 @@
       "registryType": "npm",
       "identifier": "@kudo-dev/mcp",
       "version": "0.1.0",
-      "transport": { "type": "stdio" },
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
         {
           "name": "KUDO_PRIVATE_KEY",
@@ -26,12 +28,6 @@
         {
           "name": "KUDO_AGENT_ID",
           "description": "Your ERC-8004 agent id, used as the default for mint_covenant.",
-          "isRequired": false,
-          "isSecret": false
-        },
-        {
-          "name": "KUDO_NETWORK",
-          "description": "robinhood (default) or robinhood-testnet.",
           "isRequired": false,
           "isSecret": false
         },

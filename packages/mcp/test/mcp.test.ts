@@ -23,6 +23,7 @@ describe("stdio-style server", () => {
     const names = tools.map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining(["how_to_connect", "register_agent", "list_open_asks", "get_covenant", "mint_covenant", "meet_ask", "link_proof", "watch_settlement", "agent_record", "send_signed_transaction"]));
     expect(tools.find((t) => t.name === "get_covenant")?.annotations?.readOnlyHint).toBe(true);
+    expect(names.some((n) => /pay|transfer/.test(n))).toBe(false);
     expect(tools.find((t) => t.name === "mint_covenant")?.annotations?.readOnlyHint).toBe(false);
     const { prompts } = await client.listPrompts();
     expect(prompts.map((p) => p.name)).toContain("first_covenant");

@@ -1,6 +1,6 @@
 /**
  * Runs a real ElizaOS agent (core 1.7.2 + plugin-sql + plugin-bootstrap)
- * with @kudo-dev/plugin-kudo, installed from its npm tarball, against a local
+ * with @kudo-dev/plugin-kudo against a local
  * fork of Robinhood Chain mainnet. Each turn goes through ElizaOS.handleMessage,
  * the same entry point Eliza's server uses for a chat message; the agent's own
  * model chooses the action and fills its arguments. Results are then checked on
@@ -34,7 +34,9 @@ const reader = createKudo({ rpcUrl: RPC });
 for (const a of [ada.account.address, bob.account.address, CARTE]) await rpc("hardhat_setBalance", [a, "0xDE0B6B3A7640000"]);
 await rpc("hardhat_impersonateAccount", [CARTE]);
 await rpc("eth_sendTransaction", [{ from: CARTE, to: reader.network.usdg, data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [ada.account.address, parseUnits("20", 6)] }) }]);
-console.log(`Ada wallet ${ada.account.address} (1 ETH, ${await reader.usdgBalance(ada.account.address)} USDG, no agent id)`);
+const usdgOf = async (who: `0x${string}`) =>
+  Number(await reader.publicClient.readContract({ address: reader.network.usdg, abi: erc20Abi, functionName: "balanceOf", args: [who] })) / 1e6;
+console.log(`Ada wallet ${ada.account.address} (1 ETH, ${await usdgOf(ada.account.address)} USDG, no agent id)`);
 
 // --- the Eliza project --------------------------------------------------------
 const agentId = stringToUuid("kudo-test-ada");
@@ -130,13 +132,13 @@ await bob.kudo.registerAgent({ name: "Bob" });
 await bob.kudo.meetAsk(minted!.id, { proof: "https://ipfs.io/ipfs/bafkreia47kzwlipoeycokourgsngbommecsp5ap7zcpuqdybzknoxepkxm", promiseDetail: `pay: ${bob.account.address}` });
 console.log(`\n(Bob met the ask of #${minted!.id} and asked to be paid at ${bob.account.address})`);
 
-const bobBefore = Number(await reader.usdgBalance(bob.account.address));
-t = await say(`Someone met the ask on your covenant ${minted!.id}. Pay what you owe them now.`);
-const bobAfter = Number(await reader.usdgBalance(bob.account.address));
-check("PAY_USDG", used(t, "PAY_USDG") && bobAfter - bobBefore === 5, `Bob +${bobAfter - bobBefore} USDG`);
-const payHash = t.texts.join(" ").match(/0x[0-9a-fA-F]{64}/)?.[0];
-
-t = await say(`Now link that payment${payHash ? ` (${payHash})` : ""} as the proof that you kept your promise on covenant ${minted!.id}.`);
+// The plugin never moves tokens: Ada's operator pays Bob from her wallet, as
+// the promise says, and Ada links the payment.
+const bobBefore = await usdgOf(bob.account.address);
+const payHash = await ada.kudo.walletClient!.writeContract({ address: reader.network.usdg, abi: erc20Abi, functionName: "transfer", args: [bob.account.address, parseUnits("5", 6)], chain, account: ada.account });
+await reader.publicClient.waitForTransactionReceipt({ hash: payHash });
+console.log(`\n(Ada's wallet paid Bob ${(await usdgOf(bob.account.address)) - bobBefore} USDG in ${payHash})`);
+t = await say(`Someone met the ask on your covenant ${minted!.id}, and I paid them the 5 USDG from your wallet in transaction ${payHash}. Link that payment as the proof that you kept your promise.`);
 const after = await reader.getCovenant(minted!.id);
 check("LINK_PROOF", used(t, "LINK_PROOF") && after.stage === "awaiting-evaluation", `stage ${after.stage}, proof ${after.promiseProof.slice(0, 14)}`);
 

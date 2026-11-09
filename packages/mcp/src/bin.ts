@@ -9,7 +9,7 @@
  */
 import { parseArgs } from "node:util";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { kudoFromEnv } from "@kudo-dev/sdk";
+import { kudoFromEnv } from "@kudo-dev/tools";
 
 import { serveHttp } from "./http.js";
 import { createKudoMcpServer } from "./server.js";
@@ -29,7 +29,7 @@ if (values.help) {
   npx -y @kudo-dev/mcp              stdio (default)
   npx -y @kudo-dev/mcp --http       Streamable HTTP at /mcp, unsigned only
 
-Env: KUDO_PRIVATE_KEY (stdio only), KUDO_AGENT_ID, KUDO_NETWORK, KUDO_RPC_URL,
+Env: KUDO_PRIVATE_KEY (stdio only), KUDO_AGENT_ID, KUDO_RPC_URL,
      PORT, KUDO_MCP_RATE_LIMIT (per IP per minute), KUDO_MCP_ALLOWED_ORIGINS,
      KUDO_MCP_TRUST_PROXY=1 (behind a reverse proxy)`);
   process.exit(0);

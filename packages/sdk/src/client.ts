@@ -2,14 +2,10 @@ import {
   createPublicClient,
   decodeEventLog,
   encodeFunctionData,
-  erc20Abi,
   formatUnits,
-  getAddress,
   hexToString,
   http,
-  isAddress,
   parseEventLogs,
-  parseUnits,
   stringToHex,
   zeroAddress,
   type Abi,
@@ -43,7 +39,7 @@ import {
 } from "./types.js";
 
 export interface KudoOptions {
-  /** A network key (`"robinhood"`, `"robinhood-testnet"`) or a full config. Defaults to Robinhood mainnet. */
+  /** A network key (`"robinhood"`) or a full config. Defaults to Robinhood mainnet. */
   network?: NetworkKey | KudoNetwork;
   /** Override any address or setting of the network. */
   overrides?: Partial<KudoNetwork>;
@@ -306,24 +302,42 @@ export class Kudo {
     return ids.filter((_, i) => owned[i]);
   }
 
-  /** USDG balance as a decimal string, e.g. "12.5". */
-  async usdgBalance(wallet?: Address): Promise<string> {
-    const who = wallet ?? this.address;
-    if (!who) throw new KudoError("NO_WALLET", "Pass a wallet address or connect a wallet.");
-    const raw = await this.publicClient.readContract({
-      address: this.network.usdg,
-      abi: erc20Abi,
-      functionName: "balanceOf",
-      args: [who],
-    });
-    return formatUnits(raw, 6);
-  }
-
   /** ETH balance (gas) as a decimal string. */
   async ethBalance(wallet?: Address): Promise<string> {
     const who = wallet ?? this.address;
     if (!who) throw new KudoError("NO_WALLET", "Pass a wallet address or connect a wallet.");
     return formatUnits(await this.publicClient.getBalance({ address: who }), 18);
+  }
+
+  /**
+   * The contract's ask cooldown setting, in seconds. Note: on the current
+   * mainnet contract it does not stop a second `setAskSettlementData` from
+   * replacing an earlier claim (tested on a fork), so never rely on it to
+   * protect a claim; `meetAsk` checks before and after instead.
+   */
+  async getAskCooldown(): Promise<bigint> {
+    return (await this.publicClient.readContract({
+      address: this.network.kudo,
+      abi: kudoAbi,
+      functionName: "getAskCooldown",
+    })) as bigint;
+  }
+
+  /**
+   * Throws unless a covenant is waiting for its promise proof: the ask has
+   * been met and no promise proof is linked yet. Linking before the ask is met
+   * proves nothing, and linking twice replaces the first proof.
+   */
+  assertPromiseDue(covenant: Covenant): void {
+    if (covenant.stage === "completed" || covenant.stage === "failed") {
+      throw new KudoError("INVALID_INPUT", `Covenant ${covenant.id} is already closed as ${covenant.stage}.`);
+    }
+    if (!covenant.askSettledAt) {
+      throw new KudoError("ASK_NOT_MET", `Covenant ${covenant.id}'s ask has not been met yet, so there is no promise to keep.`);
+    }
+    if (covenant.promiseProof) {
+      throw new KudoError("ALREADY_PROVEN", `Covenant ${covenant.id} already has promise proof ${covenant.promiseProof}. Do not pay or link again.`);
+    }
   }
 
   /* --------------------------------------------------------------- builders */
@@ -415,25 +429,6 @@ export class Kudo {
       functionName: "register",
       args: [input.uri ?? "", metadata],
       description: `Register an ERC-8004 agent identity named "${name}".`,
-    });
-  }
-
-  /** A USDG transfer. `amount` is in whole USDG, e.g. "5.25". */
-  buildPayUsdg(input: { to: Address; amount: string | number }): TxRequest {
-    if (!isAddress(input.to)) throw new KudoError("INVALID_INPUT", `"${input.to}" is not an address.`);
-    let units: bigint;
-    try {
-      units = parseUnits(String(input.amount), 6);
-    } catch {
-      throw new KudoError("INVALID_INPUT", `amount must be a USDG amount like "5.25", got "${input.amount}".`);
-    }
-    if (units <= 0n) throw new KudoError("INVALID_INPUT", "amount must be more than zero.");
-    return this.buildTx({
-      address: this.network.usdg,
-      abi: erc20Abi,
-      functionName: "transfer",
-      args: [getAddress(input.to), units],
-      description: `Pay ${formatUnits(units, 6)} USDG to ${getAddress(input.to)}.`,
     });
   }
 
@@ -549,7 +544,9 @@ export class Kudo {
   /**
    * Meets a covenant's ask: you did the work (or sent the money), now record
    * the proof. Refuses if someone already met it — attesting over them would
-   * overwrite their claim and restart the promiser's clock.
+   * overwrite their claim (the contract does not prevent that) and restart
+   * the promiser's clock. After mining it re-reads the
+   * covenant and throws ALREADY_MET if the proof on chain is not yours.
    */
   async meetAsk(id: bigint | number | string, input: MeetAskInput): Promise<{ hash: Hex }> {
     const { account } = this.requireWallet();
@@ -562,10 +559,21 @@ export class Kudo {
       throw new KudoError("INVALID_INPUT", `You minted covenant ${covenant.id}; you cannot be your own counterparty.`);
     }
     const receipt = await this.send(tx);
+    // Another agent may have met it between the read above and this block.
+    const after = await this.getCovenant(id);
+    if (after.askProof !== input.proof.trim()) {
+      throw new KudoError(
+        "ALREADY_MET",
+        `Transaction ${receipt.transactionHash} was mined, but covenant ${after.id}'s ask now carries ${after.askProof}, not your proof: another agent met it first.`,
+      );
+    }
     return { hash: receipt.transactionHash };
   }
 
-  /** Links proof that you kept your promise. Only the covenant's agentWallet may. */
+  /**
+   * Links proof that you kept your promise. Only the covenant's agentWallet
+   * may, only once its ask is met, and only once.
+   */
   async linkProof(id: bigint | number | string, proof: string): Promise<{ hash: Hex }> {
     const { account } = this.requireWallet();
     const tx = this.buildLinkProof(id, proof);
@@ -573,6 +581,7 @@ export class Kudo {
     if (covenant.agentWallet.toLowerCase() !== account.address.toLowerCase()) {
       throw new KudoError("NOT_PROMISER", `Covenant ${covenant.id}'s promise is owed by ${covenant.agentWallet}; only that wallet can link its proof.`);
     }
+    this.assertPromiseDue(covenant);
     const receipt = await this.send(tx);
     return { hash: receipt.transactionHash };
   }
@@ -603,12 +612,6 @@ export class Kudo {
     const registered = parseEventLogs({ abi: identityRegistryAbi, eventName: "Registered", logs: receipt.logs })[0];
     if (!registered) throw new KudoError("NOT_FOUND", `Transaction ${receipt.transactionHash} registered no identity.`);
     return { hash: receipt.transactionHash, agentId: registered.args.agentId };
-  }
-
-  /** Sends USDG. `amount` is in whole USDG. */
-  async payUsdg(input: { to: Address; amount: string | number }): Promise<{ hash: Hex }> {
-    const receipt = await this.send(this.buildPayUsdg(input));
-    return { hash: receipt.transactionHash };
   }
 
   /**

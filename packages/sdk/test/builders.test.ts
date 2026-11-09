@@ -1,8 +1,8 @@
-import { decodeFunctionData, erc20Abi, hexToString } from "viem";
+import { decodeFunctionData, hexToString } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { createKudo, identityRegistryAbi, kudoAbi, KudoError } from "../src/index.js";
-import { kudoTools, runTool } from "../src/tools.js";
+import type { Covenant } from "../src/index.js";
 
 const kudo = createKudo();
 
@@ -46,15 +46,6 @@ describe("other builders", () => {
     expect(args).toEqual([9n, "0xdead"]);
   });
 
-  it("pay USDG uses six decimals", () => {
-    const tx = kudo.buildPayUsdg({ to: "0x09977Cb96F040522E33d69656b087f910dC3385c", amount: "5.25" });
-    const { args } = decodeFunctionData({ abi: erc20Abi, data: tx.data });
-    expect(args?.[1]).toBe(5_250_000n);
-    expect(tx.to).toBe(kudo.network.usdg);
-    expect(() => kudo.buildPayUsdg({ to: "0x123" as never, amount: 1 })).toThrow(/not an address/);
-    expect(() => kudo.buildPayUsdg({ to: "0x09977Cb96F040522E33d69656b087f910dC3385c", amount: 0 })).toThrow(/more than zero/);
-  });
-
   it("register writes name and extra metadata as UTF-8", () => {
     const tx = kudo.buildRegisterAgent({ name: "Ada", metadata: { endpoint: "https://ada.example" } });
     const { args } = decodeFunctionData({ abi: identityRegistryAbi, data: tx.data });
@@ -67,28 +58,42 @@ describe("other builders", () => {
 });
 
 
-describe("tools", () => {
-  it("is unsigned without a wallet, and offers broadcast", () => {
-    const names = kudoTools({ kudo }).map((t) => t.name);
-    expect(names).toContain("send_signed_transaction");
-    expect(names).toEqual(expect.arrayContaining(["how_to_connect", "mint_covenant", "meet_ask", "link_proof", "list_open_asks", "agent_record"]));
-  });
+describe("assertPromiseDue", () => {
+  const base = {
+    id: 1n,
+    agentWallet: "0x09977Cb96F040522E33d69656b087f910dC3385c",
+    agentId: 1n,
+    status: "MINTED",
+    stage: "promise-due",
+    type: "INVOICE",
+    ask: "a",
+    promise: "p",
+    promiseDetail: "pay: 0xabc",
+    askProof: "https://ipfs.io/ipfs/x",
+    askSettledAt: new Date(),
+    promiseProof: "",
+  } as Covenant;
 
-  it("validates input and reports errors without throwing", async () => {
-    const mint = kudoTools({ kudo }).find((t) => t.name === "mint_covenant")!;
-    const bad = await runTool(mint, { type: "GIFT", ask: "x", promise: "y" });
-    expect(bad.ok).toBe(false);
-    const noId = await runTool(mint, { type: "LOAN", ask: "Lend me 5 USDG", promise: "I'll repay 5.1 USDG" });
-    expect(noId).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+  it("passes when the ask is met and no promise proof is linked", () => {
+    expect(() => kudo.assertPromiseDue(base)).not.toThrow();
   });
+  it("refuses before the ask is met", () => {
+    expect(() => kudo.assertPromiseDue({ ...base, stage: "ask-open", askSettledAt: null, askProof: "" })).toThrow(/not been met/);
+  });
+  it("refuses a second proof, so nobody pays twice", () => {
+    expect(() => kudo.assertPromiseDue({ ...base, stage: "awaiting-evaluation", promiseProof: "0xdead" })).toThrow(/already has promise proof/);
+  });
+  it("refuses a closed covenant", () => {
+    expect(() => kudo.assertPromiseDue({ ...base, stage: "completed", status: "COMPLETED" })).toThrow(/already closed/);
+  });
+});
 
-  it("returns an unsigned transaction for a mint", async () => {
-    const mint = kudoTools({ kudo, defaultAgentId: 5n }).find((t) => t.name === "mint_covenant")!;
-    const out = await runTool(mint, { type: "LOAN", ask: "Lend me 5 USDG for gas.", promise: "I'll repay 5.1 USDG within one day." });
-    expect(out.ok).toBe(true);
-    expect((out as { result: { signed: boolean; unsignedTransaction: { value: string } } }).result).toMatchObject({
-      signed: false,
-      unsignedTransaction: { value: "0", chainId: 4663 },
-    });
+describe("the library", () => {
+  it("has no payment method and only the current mainnet contract", async () => {
+    expect((kudo as unknown as Record<string, unknown>).payUsdg).toBeUndefined();
+    expect((kudo as unknown as Record<string, unknown>).buildPayUsdg).toBeUndefined();
+    const { networks } = await import("../src/index.js");
+    expect(Object.keys(networks)).toEqual(["robinhood"]);
+    expect(networks.robinhood.kudo).toBe("0x1930D0FEaB14b024353bF22adE03Db989aD640C7");
   });
 });

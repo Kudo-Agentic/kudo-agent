@@ -1,0 +1,24 @@
+{
+  "name": "@kudo-dev/tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Internal: the Kudo agent tools that @kudo-dev/mcp and @kudo-dev/plugin-kudo wrap. Never published; both packages compile it into their own build.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kudo-dev/sdk": "^0.1.0",
+    "viem": "^2.37.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0"
+  }
+}

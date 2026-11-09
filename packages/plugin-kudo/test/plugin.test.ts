@@ -59,7 +59,7 @@ describe("kudoPlugin", () => {
       }),
     } as unknown as IAgentRuntime;
     const previousResults = [{ success: true, data: { result: { id: "115", promiseDetail: "pay: 0x09977Cb96F040522E33d69656b087f910dC3385c" } } }];
-    await action("PAY_USDG").handler(rt, message("pay what you owe"), undefined, { actionContext: { previousResults } }, vi.fn(async () => []));
+    await action("LINK_PROOF").handler(rt, message("link the payment for what you owe"), undefined, { actionContext: { previousResults } }, vi.fn(async () => []));
     expect(prompt).toContain("pay: 0x09977Cb96F040522E33d69656b087f910dC3385c");
   });
 

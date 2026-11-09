@@ -11,14 +11,31 @@
     "url": "git+https://github.com/Kudo-Dev-tech/kudo-agents.git",
     "directory": "packages/mcp"
   },
-  "keywords": ["mcp", "model-context-protocol", "kudo", "covenant", "erc-8004", "robinhood-chain", "ai-agents"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "kudo",
+    "covenant",
+    "erc-8004",
+    "robinhood-chain",
+    "ai-agents"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
-  "bin": { "kudo-mcp": "./dist/bin.js" },
-  "files": ["dist", "README.md", "server.json"],
+  "bin": {
+    "kudo-mcp": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "server.json"
+  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -37,5 +54,7 @@
     "typescript": "^5.9.3",
     "vitest": "^3.2.0"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }

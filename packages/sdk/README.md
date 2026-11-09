@@ -1,9 +1,13 @@
 # @kudo-dev/sdk
 
-Mint, prove, read and settle [Kudo](https://app.kudo.archi) covenants on
-Robinhood Chain from TypeScript, or from a shell with the `kudo` CLI.
+A TypeScript library for [Kudo](https://app.kudo.archi) covenants on
+Robinhood Chain: register an ERC-8004 agent, mint a covenant, meet an ask,
+link proof, and read covenants and agent records.
 
-The Kudo MCP server and the ElizaOS plugin are thin wrappers over this package.
+It talks to the Kudo contract and the ERC-8004 registries only. It never
+moves tokens: when a promise is a payment, pay from your own wallet and link
+the transaction hash with `linkProof`. The Kudo MCP server and the ElizaOS
+plugin are built on it.
 
 ```bash
 npm install @kudo-dev/sdk viem
@@ -48,8 +52,8 @@ const { covenantId, url } = await kudo.mintCovenant({
 
 // later, once someone has met the ask:
 const c = await kudo.getCovenant(covenantId);       // c.promiseDetail → "pay: 0x…"
-const { hash } = await kudo.payUsdg({ to: "0x…", amount: "5" });
-await kudo.linkProof(covenantId, hash);
+// pay what the promise says from your own wallet (USDG has 6 decimals), then:
+await kudo.linkProof(covenantId, paymentTxHash);    // refuses before the ask is met, or twice
 await kudo.watchSettlement(covenantId);             // resolves when closed
 ```
 
@@ -69,7 +73,7 @@ const tx = kudo.buildMintCovenant({ agentId, type: "LOAN", ask, promise });
 await kudo.simulate(tx, "0xSigner"); // optional dry-run as the signer
 ```
 
-`buildMeetAsk`, `buildLinkProof`, `buildPayUsdg`, `buildRegisterAgent` and the
+`buildMeetAsk`, `buildLinkProof`, `buildRegisterAgent` and the
 generic `buildTx` work the same way.
 
 ## Covenant stages
@@ -84,44 +88,20 @@ covenant. Use `stage`:
 | `awaiting-evaluation` | both legs have proof |
 | `completed` / `failed` | closed by the Evaluator |
 
-## Agent tools
+## Claims are not protected by the contract
 
-`@kudo-dev/sdk/tools` defines every operation once as a model-facing tool
-(name, description, zod schema, `execute`). Use it to plug Kudo into any
-framework:
-
-```ts
-import { kudoTools, runTool, toolJsonSchema } from "@kudo-dev/sdk/tools";
-import { tool } from "ai"; // Vercel AI SDK
-import { z } from "zod";
-
-const tools = Object.fromEntries(
-  kudoTools({ kudo }).map((t) => [
-    t.name,
-    tool({ description: t.description, inputSchema: z.object(t.inputShape), execute: (i) => t.execute(i) }),
-  ]),
-);
-```
-
-`toolJsonSchema(t)` gives JSON Schema for OpenAI-style function calling.
-
-## CLI
-
-```bash
-npx -y @kudo-dev/sdk connect                  # start here
-npx -y @kudo-dev/sdk asks
-npx -y @kudo-dev/sdk mint --type INVOICE --ask "…" --promise "…"
-npx -y @kudo-dev/sdk help
-```
-
-Signs with `KUDO_PRIVATE_KEY` when set; otherwise prints unsigned transactions
-(add `--wallet 0x…` to dry-run them). Output is JSON.
+Anyone can call `setAskSettlementData` on a covenant again and replace an
+earlier claim; the contract's ask cooldown (`getAskCooldown()`) does not
+prevent it. `meetAsk` therefore refuses an ask that is already met, and after
+mining re-reads the covenant and throws `ALREADY_MET` if the proof on chain is
+not yours. As the promiser, re-read the covenant right before you pay, and pay
+the `promiseDetail` it shows then.
 
 ## Configuration
 
-`createKudo({ network: "robinhood-testnet" })`, `rpcUrl`, `overrides` (any
-address). `kudoFromEnv()` builds a client from
-`KUDO_PRIVATE_KEY`, `KUDO_AGENT_ID`, `KUDO_NETWORK` and `KUDO_RPC_URL`.
+`createKudo({ rpcUrl, overrides })`. Robinhood Chain mainnet is the only
+network: older Kudo deployments use a different status enum and are not
+supported.
 
 ## Development
 
