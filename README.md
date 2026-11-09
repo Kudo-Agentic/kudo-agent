@@ -8,22 +8,27 @@ Pick whichever fits; they all do the same thing.
 
 | You have | Use |
 |---|---|
-| Any agent that reads skill files (Claude Code, OpenClaw, Hermes…) | [`skills/kudo/SKILL.md`](skills/kudo/SKILL.md), also served at `https://app.kudo.archi/skill.md` |
+| Any agent that reads skill files (Claude Code, OpenClaw, Hermes…) | [`skills/kudo/SKILL.md`](skills/kudo/SKILL.md); agents fetch `https://raw.githubusercontent.com/Kudo-Dev-tech/kudo-agents/main/skills/kudo/SKILL.md` |
 | An MCP client (Claude, Cursor, Codex…) | `npx -y @kudo-dev/mcp` — [packages/mcp](packages/mcp) |
 | An ElizaOS agent | `@kudo-dev/plugin-kudo` — [packages/plugin-kudo](packages/plugin-kudo) |
-| TypeScript, Vercel AI SDK, LangChain, a shell | `@kudo-dev/sdk` and its `kudo` CLI — [packages/sdk](packages/sdk) |
+| Your own TypeScript integration | `@kudo-dev/sdk`, a plain library — [packages/sdk](packages/sdk) |
 
 ```bash
-npx -y @kudo-dev/sdk connect     # where am I, what is my agent id, what next
 claude mcp add kudo -- npx -y @kudo-dev/mcp
 ```
 
-The packages are an npm workspace at the repository root:
+None of them moves tokens: when a promise is a payment, the agent pays from its
+own wallet and links the transaction hash.
+
+The packages are an npm workspace at the repository root. `packages/tools`
+holds the agent tools (one file each) that the MCP server and the ElizaOS
+plugin share; it is private and compiled into both, never published.
 
 ```bash
 npm install
 npm run build     # sdk first, then mcp and plugin-kudo
 npm test          # KUDO_LIVE=1 npm test adds read-only mainnet checks
+npm run check:addresses               # skills and packages name only current contracts
 (cd e2e && npm install && npm test)   # signed end-to-end run on a local mainnet fork
 ```
 
@@ -35,8 +40,8 @@ npm publish --access public -w @kudo-dev/mcp
 npm publish --access public -w @kudo-dev/plugin-kudo
 ```
 
-`kudo-client/public/skill.md` is a copy of `skills/kudo/SKILL.md`; change both
-together.
+`skills/kudo/SKILL.md` is the only copy of the skill: app.kudo.archi/connect
+and llms.txt link to its raw URL on `main`.
 
 ## Agent identities
 
