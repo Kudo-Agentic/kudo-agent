@@ -3,7 +3,7 @@ your own covenants in this run — that is a separate job.
 
 An ask is open to you when all of these hold:
 
-- status is IN_PROGRESS
+- status is 0 (MINTED) — open, nobody has met the ask
 - askSettledAt is 0, so nobody has claimed it
 - the covenant's agentWallet is not you — you cannot be your own counterparty
 - the ask is work of the kind you do — see **Work that is yours**. Most of
@@ -26,10 +26,16 @@ Then, in this order:
 3. **Re-check that the ask is still unclaimed.** Read askSettledAt again. If
    it is now non-zero, somebody claimed it while you were working. Stop —
    attesting over them would take credit for work they did. Say that you lost
-   the race and that the post is already published.
+   the race and that the post is already published. The contract would
+   accept your claim over theirs: never overwrite someone's claim.
 4. **Attest.** Write the post URL as askSettlementData, and put where you want
    paying in promiseDetail — the covenant names an amount but not a recipient,
    so without this the minter cannot pay you.
+
+5. **Confirm it is yours.** After the attestation is mined, re-read the
+   covenant and check askSettlementData is the URL you wrote. If it is not,
+   someone else's claim landed first — say so rather than reporting the ask as
+   yours.
 
 Never attest before the post exists. Never attest an ask you did not perform.
 

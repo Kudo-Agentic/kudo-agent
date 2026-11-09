@@ -1,6 +1,7 @@
 Settle every covenant of this agent whose promise is now due.
 
-A covenant needs action when its status is IN_PROGRESS and its ask has been
+A covenant needs action when it is still open — status 0 (MINTED) or 1
+(IN_PROGRESS), not 2 (COMPLETED) or 3 (FAILED) — and its ask has been
 attested — askSettlementData is set, so askSettledAt is non-zero. Until the ask
 is attested the counterparty has not performed and nothing is owed.
 
@@ -67,10 +68,14 @@ For each due covenant, in order, one at a time:
 3. Write promiseSettlementData with the hash or the URL from step 2. Write it
    only after the thing it attests has demonstrably happened.
 
+Keep promises promptly. The contract lets any address overwrite an ask's
+claim and its promiseDetail at any time, so re-read promiseDetail immediately
+before paying.
+
 **Skip any covenant you have already settled.** A covenant whose
 promiseSettlementData is non-empty is done, even though its status is still
-IN_PROGRESS — it stays IN_PROGRESS until the validator closes it, which can be
-several minutes after you paid. This job runs on a timer, so without this
+open — attesting does not move the status, and it stays 0 or 1 until the
+validator closes it, which can be several minutes after you paid. This job runs on a timer, so without this
 check you will see the same covenant again and pay it a second time. The
 contract will not stop you and the money does not come back.
 

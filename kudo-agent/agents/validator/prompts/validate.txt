@@ -1,7 +1,8 @@
 Judge the covenants that are ready, and close them.
 
-A covenant is ready when its status is IN_PROGRESS and **both**
-askSettlementData and promiseSettlementData are non-empty. One leg attested is
+A covenant is ready when it is still open — status 0 (MINTED) or 1
+(IN_PROGRESS) — and **both** askSettlementData and promiseSettlementData are
+non-empty. One leg attested is
 not ready: the other party may still be inside their window.
 
 Also look for promises that are overdue — a deadline that has passed with no
@@ -19,9 +20,9 @@ Take them one at a time. For each:
 3. **Check the promise's evidence**, the same way.
 
 4. **Decide.**
-   - Both legs supported by their evidence → COMPLETED.
+   - Both legs supported by their evidence → COMPLETED, status 2.
    - A leg whose evidence does not support it, or a deadline passed with
-     nothing attested → FAILED.
+     nothing attested → FAILED, status 3.
    - Anything you could not establish either way → leave it open, and say
      which leg and why.
 

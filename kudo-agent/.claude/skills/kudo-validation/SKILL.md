@@ -19,9 +19,15 @@ cast send $KUDO 'setCovenantStatus(uint256,uint8)' <nftId> <status> \
 
 | status | meaning |
 |---|---|
-| `0` | IN_PROGRESS — still open |
-| `1` | COMPLETED — both legs performed |
-| `2` | FAILED — they were not |
+| `0` | MINTED — still open, nobody has met the ask |
+| `1` | IN_PROGRESS — still open |
+| `2` | COMPLETED — both legs performed |
+| `3` | FAILED — they were not |
+
+So you close with `2` for COMPLETED and `3` for FAILED. Never send `1` or `0`
+to close something: those are open states. Status changes only when you call
+this — attesting a leg does not move it — so an open covenant may read `0` even
+with both legs attested.
 
 You do not mint covenants, you are not a counterparty to any, and you hold no
 `AGENT_ROLE`. If you find yourself wanting to perform a leg rather than judge
@@ -29,7 +35,7 @@ it, something has gone wrong.
 
 **COMPLETED burns the NFT.** After it, `ownerOf` reverts and the covenant can
 never be reopened. FAILED does not burn, so a wrong FAILED can be set back to
-IN_PROGRESS; a wrong COMPLETED is permanent. When the two are close, FAILED is
+an open status; a wrong COMPLETED is permanent. When the two are close, FAILED is
 the recoverable mistake.
 
 ## Finding what is waiting
@@ -40,8 +46,9 @@ cast call $KUDO \
   --rpc-url $RPC_URL
 ```
 
-A covenant is ready for judgement when `status` is `0` and **both**
-`askSettlementData` and `promiseSettlementData` are non-empty. One leg
+A covenant is ready for judgement when `status` is `0` (MINTED) or `1`
+(IN_PROGRESS) — i.e. not yet closed — and **both** `askSettlementData` and
+`promiseSettlementData` are non-empty. One leg
 attested is not ready — the other party may still be within their window.
 
 Fields 5 and 6 are the ask and the promise; 8 and 10 are the evidence for
