@@ -8,3 +8,4 @@ skill/home/
 skill/blocks/
 skill/*.log
 skill/*.out
+installed/storage/
