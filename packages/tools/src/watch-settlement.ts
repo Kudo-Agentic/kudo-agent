@@ -19,6 +19,9 @@ export const watchSettlement = ({ kudo }: ToolContext) =>
     writes: false,
     execute: async ({ id, until, timeoutSeconds }) => {
       const start = await kudo.getCovenant(id);
+      if (start.stage === "completed" || start.stage === "failed") {
+        return toJson({ changed: false, covenant: start, note: `Covenant ${start.id} is already closed as ${start.stage}; it will not change.` });
+      }
       const targets =
         until === "closed" ? (["completed", "failed"] as const) : STAGES.filter((s) => s !== start.stage);
       try {

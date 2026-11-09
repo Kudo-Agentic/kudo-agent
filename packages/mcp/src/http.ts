@@ -120,7 +120,9 @@ export function serveHttp(options: HttpOptions & { port: number; host?: string; 
         res.statusCode = 404;
         return res.end("Not found. The MCP endpoint is /mcp.");
       }
-      const forwarded = options.trustProxy ? String(req.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() : "";
+      // The client controls every X-Forwarded-For entry except the last, which
+      // the trusted proxy appended: key the rate limit on that one.
+      const forwarded = options.trustProxy ? String(req.headers["x-forwarded-for"] ?? "").split(",").at(-1)?.trim() : "";
       await send(res, await handle(await toRequest(req), forwarded || req.socket.remoteAddress || "unknown"));
     } catch (error) {
       console.error(error);

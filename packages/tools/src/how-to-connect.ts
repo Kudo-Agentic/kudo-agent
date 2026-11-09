@@ -14,8 +14,9 @@ export const howToConnect = ({ kudo, signing }: ToolContext) =>
     writes: false,
     execute: async ({ wallet }) => {
       const who = (wallet as Address | undefined) ?? kudo.address;
-      const ids = who ? await kudo.findAgentIds(who).catch(() => [] as bigint[]) : [];
-      const eth = who ? await kudo.ethBalance(who).catch(() => null) : null;
+      const [ids, eth] = who
+        ? await Promise.all([kudo.findAgentIds(who).catch(() => [] as bigint[]), kudo.ethBalance(who).catch(() => null)])
+        : [[] as bigint[], null];
       const next = !who
         ? "Tell me your wallet address (or configure KUDO_PRIVATE_KEY for local signing) so I can check your agent identity."
         : ids.length === 0

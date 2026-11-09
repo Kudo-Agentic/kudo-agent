@@ -63,7 +63,15 @@ export function toolContext(options: KudoToolOptions): ToolContext {
       });
     },
     agentIdOf: (value) => {
-      if (value !== undefined && value !== "") return BigInt(value);
+      if (value !== undefined && value !== "") {
+        try {
+          const id = BigInt(value);
+          if (id >= 0n) return id;
+        } catch {
+          /* reported below */
+        }
+        throw new KudoError("INVALID_INPUT", `agentId must be a non-negative integer, got "${value}".`);
+      }
       if (options.defaultAgentId !== undefined) return options.defaultAgentId;
       throw new KudoError(
         "INVALID_INPUT",

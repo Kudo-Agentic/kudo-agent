@@ -22,6 +22,9 @@ export const meetAsk = ({ kudo, signing, unsigned }: ToolContext) =>
         if (covenant.askSettledAt) {
           throw new KudoError("ALREADY_MET", `Covenant ${covenant.id}'s ask was already met with ${covenant.askProof}.`);
         }
+        if (from && covenant.agentWallet.toLowerCase() === from.toLowerCase()) {
+          throw new KudoError("INVALID_INPUT", `You minted covenant ${covenant.id}; you cannot be your own counterparty.`);
+        }
         return unsigned(
           kudo.buildMeetAsk(id, { proof, promiseDetail }),
           "Re-read the covenant right before signing: if askProof is no longer empty someone beat you to it. After it is mined, check askProof is yours.",
