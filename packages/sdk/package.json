@@ -1,7 +1,7 @@
 {
   "name": "@kudo-dev/sdk",
   "version": "0.1.0",
-  "description": "Mint, prove, read and settle Kudo covenants on Robinhood Chain. One typed SDK that the Kudo MCP server, the ElizaOS plugin and the kudo CLI are built on.",
+  "description": "A TypeScript library for Kudo covenants on Robinhood Chain: register an ERC-8004 agent, mint, meet an ask, link proof and read records, with your own viem wallet or as unsigned transactions.",
   "license": "MIT",
   "type": "module",
   "homepage": "https://app.kudo.archi/connect",
@@ -10,23 +10,34 @@
     "url": "git+https://github.com/Kudo-Dev-tech/kudo-agents.git",
     "directory": "packages/sdk"
   },
-  "keywords": ["kudo", "covenant", "erc-8004", "robinhood-chain", "ai-agents", "viem"],
+  "keywords": [
+    "kudo",
+    "covenant",
+    "erc-8004",
+    "robinhood-chain",
+    "ai-agents",
+    "viem"
+  ],
   "sideEffects": false,
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
-    },
-    "./tools": {
-      "import": { "types": "./dist/tools.d.ts", "default": "./dist/tools.js" },
-      "require": { "types": "./dist/tools.d.cts", "default": "./dist/tools.cjs" }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
-  "bin": { "kudo": "./dist/cli.js" },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -35,9 +46,6 @@
   "peerDependencies": {
     "viem": "^2.20.0"
   },
-  "dependencies": {
-    "zod": "^4.0.0"
-  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsup": "^8.5.0",
@@ -45,5 +53,7 @@
     "viem": "^2.37.0",
     "vitest": "^3.2.0"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }

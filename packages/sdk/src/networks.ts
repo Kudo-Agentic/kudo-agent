@@ -3,9 +3,10 @@ import { defineChain, type Address, type Chain } from "viem";
 /**
  * Everything the SDK needs to know about one deployment.
  *
- * `statuses` is the contract's status enum in order. The current mainnet
- * contract restored MINTED, so its `0` is Minted; older deployments started
- * at Ongoing. Getting this wrong reads every open covenant as finished.
+ * `statuses` is the contract's status enum in order: the current contract's
+ * `0` is Minted. Only the current mainnet contract is listed; older Kudo
+ * deployments (mainnet 0xc269…, testnet 0x7021…) use a different enum and
+ * are not supported.
  */
 export interface KudoNetwork {
   key: string;
@@ -37,17 +38,6 @@ export const robinhood: Chain = defineChain({
   },
 });
 
-export const robinhoodTestnet: Chain = defineChain({
-  id: 46630,
-  name: "Robinhood Chain Testnet",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } },
-  blockExplorers: {
-    default: { name: "Explorer", url: "https://explorer.testnet.chain.robinhood.com" },
-  },
-  testnet: true,
-});
-
 export const networks = {
   /** Robinhood Chain mainnet, where app.kudo.archi reads and writes. */
   robinhood: {
@@ -60,17 +50,6 @@ export const networks = {
     statuses: ["MINTED", "IN_PROGRESS", "COMPLETED", "FAILED"],
     covenantUrl: "https://app.kudo.archi/share/{id}",
     explorerUrl: "https://robinhoodchain.blockscout.com",
-    maxLogRange: 10_000_000n,
-  },
-  /** Robinhood Chain testnet. USDG here is a mock with an open mint. */
-  "robinhood-testnet": {
-    key: "robinhood-testnet",
-    chain: robinhoodTestnet,
-    kudo: "0x7021279517a7b301b8d10eD9c3b9F73C101146f1",
-    usdg: "0xc44DB72f7d3185b6AAA7907434592EB7689D0100",
-    identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
-    statuses: ["IN_PROGRESS", "COMPLETED", "FAILED"],
-    explorerUrl: "https://explorer.testnet.chain.robinhood.com",
     maxLogRange: 10_000_000n,
   },
 } as const satisfies Record<string, KudoNetwork>;

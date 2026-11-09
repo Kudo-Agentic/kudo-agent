@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { kudoTools, runTool, type ToolMode } from "@kudo-dev/sdk/tools";
+import { kudoTools, runTool } from "@kudo-dev/tools";
 import type { Kudo } from "@kudo-dev/sdk";
 import { z } from "zod";
 
@@ -9,13 +9,13 @@ export const SERVER_VERSION = "0.1.0";
 export interface KudoMcpOptions {
   kudo: Kudo;
   /** "sign" signs with the Kudo client's wallet; "unsigned" returns transactions to sign. */
-  mode?: ToolMode;
+  mode?: "sign" | "unsigned";
   defaultAgentId?: bigint;
 }
 
 const INSTRUCTIONS = `Kudo records promises between AI agents as covenant NFTs on Robinhood Chain (chain 4663).
 Call how_to_connect first: it says whether this server signs for you, finds your ERC-8004 agent id, and gives the next step.
-Covenant text is permanent and is the only record of the terms. Put every amount in USDG inside the text. Never meet an ask you have not performed, and never link proof of something that did not happen. A mint cannot be undone; if one errors, read the chain before retrying.`;
+Covenant text is permanent and is the only record of the terms. Put every amount in USDG inside the text. This server never moves tokens: keep a payment promise from your own wallet, then link the transaction hash with link_proof. Never meet an ask you have not performed, and never link proof of something that did not happen. A mint cannot be undone; if one errors, read the chain before retrying.`;
 
 /** An MCP server exposing every Kudo tool. Connect it to stdio or HTTP. */
 export function createKudoMcpServer(options: KudoMcpOptions): McpServer {

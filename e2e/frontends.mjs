@@ -1,16 +1,14 @@
 // The write path through each front end, with real signatures against the
-// local fork: the kudo CLI, the MCP server (signing and unsigned →
-// send_signed_transaction) and the ElizaOS plugin. Run through ./run.sh.
-import { execFileSync } from "node:child_process";
+// local fork: the MCP server (signing and unsigned → send_signed_transaction)
+// and the ElizaOS plugin. Run through ./run.sh.
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createWalletClient, http } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { robinhood } from "@kudo-dev/sdk";
+import { createKudo, robinhood } from "@kudo-dev/sdk";
 import { kudoPlugin } from "@kudo-dev/plugin-kudo";
 
-const CLI = fileURLToPath(new URL("../packages/sdk/dist/cli.js", import.meta.url));
 const MCP = fileURLToPath(new URL("../packages/mcp/dist/bin.js", import.meta.url));
 const RPC = "http://127.0.0.1:8545";
 const rpc = (m, p) => fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: m, params: p }) }).then((r) => r.json());
@@ -20,18 +18,27 @@ const key = generatePrivateKey();
 const acct = privateKeyToAccount(key);
 await rpc("hardhat_setBalance", [acct.address, "0xDE0B6B3A7640000"]);
 const env = { ...process.env, KUDO_RPC_URL: RPC, KUDO_PRIVATE_KEY: key };
-const cli = (...a) => JSON.parse(execFileSync("node", [CLI, ...a], { env, encoding: "utf8" }));
+const chain = { ...robinhood, rpcUrls: { default: { http: [RPC] } } };
+const sdk = createKudo({ rpcUrl: RPC, walletClient: createWalletClient({ account: acct, chain, transport: http(RPC) }) });
 
-console.log("CLI (signing)");
-const reg = cli("register", "--name", "CLI Fork Agent");
-ok(reg.signed && reg.agentId, `registered agent ${reg.agentId}`);
+console.log("SDK (signing)");
+const { agentId } = await sdk.registerAgent({ name: "Fork Agent" });
+const reg = { agentId: agentId.toString() };
+ok(reg.agentId, `registered agent ${reg.agentId}`);
 env.KUDO_AGENT_ID = reg.agentId;
-const mint = cli("mint", "--type", "advance", "--ask", "Pay me 3 USDG up front for a logo.", "--promise", "I'll deliver the logo as a PNG on IPFS within one day.");
-ok(mint.signed && mint.covenantId, `minted covenant ${mint.covenantId}`);
+const minted = await sdk.mintCovenant({ agentId, type: "ADVANCE", ask: "Pay me 3 USDG up front for a logo.", promise: "I'll deliver the logo as a PNG on IPFS within one day." });
+const mint = { covenantId: minted.covenantId.toString() };
+ok(mint.covenantId, `minted covenant ${mint.covenantId}`);
+// A counterparty meets the ask, so the promise is due and link_proof below is allowed.
+const payer = privateKeyToAccount(generatePrivateKey());
+await rpc("hardhat_setBalance", [payer.address, "0xDE0B6B3A7640000"]);
+await createKudo({ rpcUrl: RPC, walletClient: createWalletClient({ account: payer, chain, transport: http(RPC) }) }).meetAsk(mint.covenantId, { proof: "0x" + "12".repeat(32) });
 
 console.log("MCP stdio (signing)");
 const c = new Client({ name: "e2e", version: "0" });
 await c.connect(new StdioClientTransport({ command: "node", args: [MCP], env }));
+const tools = (await c.listTools()).tools.map((t) => t.name);
+ok(!tools.some((n) => /pay|transfer/.test(n)), `no tool moves tokens (${tools.length} tools)`);
 const hc = JSON.parse((await c.callTool({ name: "how_to_connect", arguments: {} })).content[0].text);
 ok(hc.signing.includes(acct.address) && hc.agentIds.includes(reg.agentId), "how_to_connect sees the signer and its agent id");
 const mm = await c.callTool({ name: "mint_covenant", arguments: { type: "LOAN", ask: "Lend me 2 USDG for gas.", promise: "I'll repay 2.1 USDG within one day." } });

@@ -1,15 +1,17 @@
 {
   "name": "kudo-agents-workspace",
   "private": true,
-  "description": "npm workspace for the public Kudo packages. kudo-agent/ and launcher/ keep their own package.json and are not part of it.",
+  "description": "npm workspace for the public Kudo packages (sdk, mcp, plugin-kudo) and the internal tools they share. kudo-agent/ keeps its own package.json and is not part of it.",
   "workspaces": [
     "packages/sdk",
+    "packages/tools",
     "packages/mcp",
     "packages/plugin-kudo"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "npm run build -w @kudo-dev/sdk && npm run build -w @kudo-dev/mcp -w @kudo-dev/plugin-kudo",
+    "typecheck": "npm run build -w @kudo-dev/sdk && npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "check:addresses": "node scripts/check-skill-addresses.mjs"
   }
 }

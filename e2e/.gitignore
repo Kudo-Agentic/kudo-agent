@@ -7,3 +7,4 @@ eliza/bun.lock
 skill/home/
 skill/blocks/
 skill/*.log
+skill/*.out

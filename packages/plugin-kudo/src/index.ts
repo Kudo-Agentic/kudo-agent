@@ -7,8 +7,9 @@
  *   plugins: ["@kudo-dev/plugin-kudo"]
  *   settings: { secrets: { KUDO_PRIVATE_KEY: "0x…", KUDO_AGENT_ID: "123" } }
  *
- * Every action wraps one tool from `@kudo-dev/sdk/tools`, so the Eliza
- * plugin, the MCP server and the CLI behave identically. Arguments are pulled
+ * Every action wraps one tool from the shared Kudo tool list (packages/tools,
+ * compiled into this package), so the Eliza plugin and the MCP server behave
+ * identically. Arguments are pulled
  * from the conversation with the runtime's small model, validated by the
  * tool's own schema, and then executed.
  *
@@ -27,8 +28,8 @@ import {
   type Provider,
   type State,
 } from "@elizaos/core";
-import { kudoFromEnv, kudoFromEnvWithKeySource, type KeySource, type Kudo } from "@kudo-dev/sdk";
-import { kudoTools, runTool, toolJsonSchema, type KudoTool } from "@kudo-dev/sdk/tools";
+import type { Kudo } from "@kudo-dev/sdk";
+import { kudoFromEnv, kudoFromEnvWithKeySource, kudoTools, runTool, toolJsonSchema, type KeySource, type KudoTool } from "@kudo-dev/tools";
 
 const SETTINGS = [
   "KUDO_KEY_SOURCE",
@@ -36,13 +37,18 @@ const SETTINGS = [
   "KUDO_DSTACK_KEY_PATH",
   "KUDO_DSTACK_SOCKET",
   "KUDO_AGENT_ID",
-  "KUDO_NETWORK",
   "KUDO_RPC_URL",
 ] as const;
 
-interface KudoState {
+/** What getKudo resolves to. */
+export interface KudoRuntimeState {
   kudo: Kudo;
   agentId?: bigint;
+  /** Where the signing key came from: KUDO_PRIVATE_KEY ("env") or the TEE ("dstack"). */
+  keySource: "env" | "dstack";
+}
+
+interface KudoState extends KudoRuntimeState {
   keySource: KeySource;
   tools: Map<string, KudoTool>;
 }
@@ -57,7 +63,11 @@ const states = new WeakMap<IAgentRuntime, Promise<KudoState>>();
  * never exists outside the enclave. Choosing `dstack` where there is no
  * dstack socket fails rather than falling back to another key.
  */
-export function getKudo(runtime: IAgentRuntime): Promise<KudoState> {
+export function getKudo(runtime: IAgentRuntime): Promise<KudoRuntimeState> {
+  return kudoState(runtime);
+}
+
+function kudoState(runtime: IAgentRuntime): Promise<KudoState> {
   let state = states.get(runtime);
   if (state) return state;
   const env: Record<string, string> = {};
@@ -128,11 +138,6 @@ const ACTIONS: Record<string, { name: string; similes: string[]; example: [strin
     similes: ["PROVE_PROMISE", "SETTLE_PROMISE", "ATTEST_PROMISE"],
     example: ["You paid for covenant 108 in tx 0xe476…; link it.", "Linking the payment as proof for covenant 108."],
   },
-  pay_usdg: {
-    name: "PAY_USDG",
-    similes: ["SEND_USDG", "TRANSFER_USDG"],
-    example: ["Pay 100 USDG to 0xaaa4…", "Sending 100 USDG."],
-  },
   watch_settlement: {
     name: "WATCH_COVENANT",
     similes: ["WATCH_SETTLEMENT", "WAIT_FOR_COVENANT"],
@@ -145,7 +150,7 @@ const ACTIONS: Record<string, { name: string; similes: string[]; example: [strin
   },
 };
 
-/** What earlier actions in this same turn returned, so a chain like GET_COVENANT → PAY_USDG can use it. */
+/** What earlier actions in this same turn returned, so a chain like GET_COVENANT → LINK_PROOF can use it. */
 function earlierResults(options?: HandlerOptions): string {
   const previous = options?.actionContext?.previousResults ?? [];
   return previous
@@ -193,7 +198,7 @@ function toAction(tool: KudoTool): Action {
       }
     },
     handler: async (runtime, message, state, options, callback) => {
-      const { tools } = await getKudo(runtime);
+      const { tools } = await kudoState(runtime);
       const current = tools.get(tool.name) ?? tool;
 
       let args: Record<string, unknown> = {};
@@ -240,8 +245,6 @@ function summarize(tool: string, r: Record<string, unknown>, args: Record<string
       return r.signed ? `Met the ask of covenant ${args.id} with proof ${args.proof}. ${link}` : `Prepared the transaction; it needs to be signed.`;
     case "link_proof":
       return r.signed ? `Linked ${args.proof} as proof for covenant ${args.id}. ${link}` : `Prepared the transaction; it needs to be signed.`;
-    case "pay_usdg":
-      return r.signed ? `Paid ${args.amount} USDG to ${args.to}. Transaction ${r.hash}. ${link}` : `Prepared the transaction; it needs to be signed.`;
     case "list_open_asks": {
       const asks = (r.asks as { id: string; type: string; ask: string; promise: string }[]) ?? [];
       return asks.length
@@ -307,7 +310,7 @@ export const kudoProvider: Provider = {
   },
 };
 
-export function createKudoActions(runtimeTools?: KudoTool[]): Action[] {
+function createKudoActions(runtimeTools?: KudoTool[]): Action[] {
   // Actions only need each tool's name, description and schema up front;
   // the runtime's own client is resolved inside the handler.
   const tools =

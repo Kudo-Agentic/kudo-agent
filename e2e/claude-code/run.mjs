@@ -1,6 +1,6 @@
 /**
- * Attaches @kudo-dev/mcp (installed from its npm tarball) to a real Claude
- * Code instance via --mcp-config, against a local fork of Robinhood Chain
+ * Attaches @kudo-dev/mcp to a real Claude Code instance via --mcp-config
+ * (the in-repo build, or KUDO_MCP_BIN, e.g. the bin of an installed tarball), against a local fork of Robinhood Chain
  * mainnet, and checks every result on chain with the SDK.
  *
  *   A. stdio, signing (KUDO_PRIVATE_KEY): the full conversation
@@ -17,7 +17,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createKudo, robinhood } from "@kudo-dev/sdk";
 
 const RPC = "http://127.0.0.1:8545";
-const BIN = new URL("../../packages/mcp/dist/bin.js", import.meta.url).pathname;
+const BIN = process.env.KUDO_MCP_BIN ?? new URL("../../packages/mcp/dist/bin.js", import.meta.url).pathname;
 const CARTE = "0xFB9A9eB13B4Cf30963DCC0A0cbc5598Cc03B2cf3";
 const rpc = (m, p) => fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: m, params: p }) }).then((r) => r.json());
 const chain = { ...robinhood, rpcUrls: { default: { http: [RPC] } } };
@@ -30,7 +30,8 @@ const bob = wallet(generatePrivateKey());
 for (const a of [me.account.address, bob.account.address, CARTE]) await rpc("hardhat_setBalance", [a, "0xDE0B6B3A7640000"]);
 await rpc("hardhat_impersonateAccount", [CARTE]);
 await rpc("eth_sendTransaction", [{ from: CARTE, to: reader.network.usdg, data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [me.account.address, parseUnits("20", 6)] }) }]);
-console.log(`signer ${me.account.address}: 1 ETH, ${await reader.usdgBalance(me.account.address)} USDG, no agent id`);
+const usdgOf = async (who) => Number(await reader.publicClient.readContract({ address: reader.network.usdg, abi: erc20Abi, functionName: "balanceOf", args: [who] })) / 1e6;
+console.log(`signer ${me.account.address}: 1 ETH, ${await usdgOf(me.account.address)} USDG, no agent id`);
 
 const config = (name, server) => { const f = join(DIR, `${name}.json`); writeFileSync(f, JSON.stringify({ mcpServers: { kudo: server } })); return f; };
 const signingCfg = config("signing", { command: "node", args: [BIN], env: { KUDO_PRIVATE_KEY: me.key, KUDO_RPC_URL: RPC } });
@@ -86,12 +87,16 @@ await bob.kudo.registerAgent({ name: "Bob" });
 await bob.kudo.meetAsk(cov.id, { proof: "https://ipfs.io/ipfs/bafkreia47kzwlipoeycokourgsngbommecsp5ap7zcpuqdybzknoxepkxm", promiseDetail: `pay: ${bob.account.address}` });
 console.log(`\n(Bob met the ask of #${cov.id}, pay to ${bob.account.address})`);
 
-const before = Number(await reader.usdgBalance(bob.account.address));
-t = ask(signingCfg, A, `Someone met the ask on covenant ${cov.id}. Keep my promise: pay them what I owe, then link the payment as proof.`);
-const paid = Number(await reader.usdgBalance(bob.account.address)) - before;
+// The server never moves tokens: the user pays from their own wallet, then
+// asks Claude to link the payment.
+const before = await usdgOf(bob.account.address);
+const payHash = await me.client.writeContract({ address: reader.network.usdg, abi: erc20Abi, functionName: "transfer", args: [bob.account.address, parseUnits("5", 6)] });
+await reader.publicClient.waitForTransactionReceipt({ hash: payHash });
+console.log(`\n(I paid Bob ${(await usdgOf(bob.account.address)) - before} USDG myself in ${payHash})`);
+t = ask(signingCfg, A, `Someone met the ask on covenant ${cov.id}. I paid them the 5 USDG I owed from my own wallet in transaction ${payHash}. Link that payment as the proof that I kept my promise.`);
 const proved = await reader.getCovenant(cov.id);
-check("pay_usdg", t.tools.includes("pay_usdg") && paid === 5, `Bob +${paid} USDG`);
-check("link_proof", t.tools.includes("link_proof") && proved.stage === "awaiting-evaluation", `stage ${proved.stage}`);
+check("no payment tool offered", !t.tools.some((n) => /pay|transfer/.test(n)), `tools: ${t.tools.join(", ")}`);
+check("link_proof", t.tools.includes("link_proof") && proved.stage === "awaiting-evaluation" && proved.promiseProof === payHash, `stage ${proved.stage}`);
 t = ask(signingCfg, A, `Watch covenant ${cov.id} briefly (10 seconds is enough) and tell me if it moves.`);
 check("watch_settlement", t.tools.includes("watch_settlement"));
 t = ask(signingCfg, A, "List the covenants I've minted.");

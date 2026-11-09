@@ -1,6 +1,6 @@
 // Full covenant lifecycle with real signatures against a local fork of
-// Robinhood Chain mainnet: register, mint, meet ask, pay USDG, link proof,
-// and every guard rail. Run through ./run.sh.
+// Robinhood Chain mainnet: register, mint, meet ask, link proof, and every
+// guard rail. The SDK never moves tokens: A pays B from its own wallet here. Run through ./run.sh.
 import { createWalletClient, http, erc20Abi, parseUnits, formatUnits } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createKudo, robinhood } from "@kudo-dev/sdk";
@@ -46,15 +46,34 @@ console.log("pay + prove");
 const usdg = A.kudo.network.usdg;
 const fund = await rpc("eth_sendTransaction", [{ from: CARTE, to: usdg, data: (await import("viem")).encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [A.account.address, parseUnits("10", 6)] }) }]);
 if (fund.error) console.log(fund.error); ok(!fund.error, "funded A with 10 USDG from a forked holder");
-const before = await B.kudo.usdgBalance(B.account.address);
-const { hash: payHash } = await A.kudo.payUsdg({ to: B.account.address, amount: "5" });
-ok(Number(await B.kudo.usdgBalance(B.account.address)) - Number(before) === 5, `B received 5 USDG (${payHash.slice(0,10)})`);
+const balance = (who) => A.kudo.publicClient.readContract({ address: usdg, abi: erc20Abi, functionName: "balanceOf", args: [who] });
+const before = await balance(B.account.address);
+const payHash = await A.kudo.walletClient.writeContract({ address: usdg, abi: erc20Abi, functionName: "transfer", args: [B.account.address, parseUnits("5", 6)], chain, account: A.account });
+await A.kudo.publicClient.waitForTransactionReceipt({ hash: payHash });
+ok((await balance(B.account.address)) - before === 5_000_000n, `A paid B 5 USDG from its own wallet (${payHash.slice(0,10)})`);
 await expectErr(B.kudo.linkProof(covenantId, payHash), "NOT_PROMISER", "B cannot link A's promise");
-try { await A.kudo.payUsdg({ to: B.account.address, amount: "1000" }); throw new Error("FAIL: overspend sent"); } catch (e) { if (e.message.startsWith("FAIL")) throw e; ok(Number(await A.kudo.usdgBalance()) === 5, `overspend stopped before sending (${e.code}); A still holds 5 USDG`); }
 const watching = A.kudo.watchSettlement(covenantId, { until: ["awaiting-evaluation"], intervalMs: 500, timeoutMs: 60000 });
 await A.kudo.linkProof(covenantId, payHash);
 c = await watching;
 ok(c.stage === "awaiting-evaluation" && c.promiseProof === payHash, "A linked proof; watchSettlement saw awaiting-evaluation");
+await expectErr(A.kudo.linkProof(covenantId, "0xsecond"), "ALREADY_PROVEN", "a second promise proof is refused (no double payment)");
+
+console.log("link proof before the ask is met");
+const { covenantId: early } = await A.kudo.mintCovenant({ agentId, type: "LOAN", ask: "Lend me 2 USDG for gas.", promise: "I'll repay 2.1 USDG within one day." });
+await expectErr(A.kudo.linkProof(early, "0xnothing"), "ASK_NOT_MET", "linking before anyone met the ask is refused");
+
+console.log("meet-ask race");
+// Automine off: B's claim and then C's land in one block, so C's proof is the one left.
+const C = mk(generatePrivateKey());
+await rpc("hardhat_setBalance", [C.account.address, "0xDE0B6B3A7640000"]);
+await rpc("evm_setAutomine", [false]);
+const bMeets = B.kudo.meetAsk(early, { proof: "https://ipfs.io/ipfs/bafyb", promiseDetail: `pay: ${B.account.address}` }).then(() => null, (e) => e);
+for (let i = 0; i < 100 && !(await rpc("eth_getBlockByNumber", ["pending", false])).result.transactions.length; i++) await new Promise((r) => setTimeout(r, 100));
+await C.kudo.walletClient.sendTransaction({ ...C.kudo.buildMeetAsk(early, { proof: "https://ipfs.io/ipfs/bafyc" }), account: C.account, chain, maxPriorityFeePerGas: 0n });
+await rpc("evm_mine", []);
+await rpc("evm_setAutomine", [true]);
+const lost = await bMeets;
+ok(lost?.code === "ALREADY_MET" && (await A.kudo.getCovenant(early)).askProof.endsWith("bafyc"), `meetAsk notices a claim that landed after its own (${lost?.code})`);
 
 const rec = await A.kudo.agentRecord(agentId);
-ok(rec.covenants.total === 1 && rec.covenants.open === 1, "agentRecord counts it");
+ok(rec.covenants.total === 2 && rec.covenants.open === 2, "agentRecord counts both covenants as open");

@@ -1,18 +1,16 @@
 import { createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { Kudo, type KudoOptions } from "./client.js";
-import { KudoError } from "./errors.js";
-import { networks, type NetworkKey } from "./networks.js";
+import { DSTACK_KEY_PATH, Kudo, KudoError, dstackPrivateKey, networks, type KudoOptions, type NetworkKey } from "@kudo-dev/sdk";
 
 /**
- * The environment variables every Kudo integration reads.
+ * The environment variables @kudo-dev/mcp and @kudo-dev/plugin-kudo read.
  *
  * | Variable           | Meaning                                                    |
  * |--------------------|------------------------------------------------------------|
  * | KUDO_PRIVATE_KEY   | signs locally. Leave unset for read-only / unsigned mode.  |
  * | KUDO_AGENT_ID      | your ERC-8004 id; the default for mint                     |
- * | KUDO_NETWORK       | `robinhood` (default) or `robinhood-testnet`               |
+ * | KUDO_NETWORK       | `robinhood` (the default, and the only network)            |
  * | KUDO_RPC_URL       | RPC override                                               |
  */
 export interface KudoEnv {
@@ -88,7 +86,6 @@ export async function kudoFromEnvWithKeySource(
   if (env.KUDO_PRIVATE_KEY?.trim()) {
     warnings.push("KUDO_PRIVATE_KEY is set but ignored: KUDO_KEY_SOURCE=dstack takes the key from the TEE.");
   }
-  const { dstackPrivateKey, DSTACK_KEY_PATH } = await import("./dstack.js");
   const key = await dstackPrivateKey(env.KUDO_DSTACK_KEY_PATH?.trim() || DSTACK_KEY_PATH, {
     socket: env.KUDO_DSTACK_SOCKET?.trim() || undefined,
   });

@@ -23,7 +23,7 @@ export const REVERTS: Record<string, { name: string; hint: string }> = {
   },
   "0x356680b7": {
     name: "InsufficientFunds",
-    hint: "The wallet does not hold enough USDG for this payment. Check usdgBalance and top up, or pay less.",
+    hint: "The wallet does not hold enough of the token for this transfer.",
   },
   "0xe450d38c": {
     name: "ERC20InsufficientBalance",
@@ -40,6 +40,8 @@ export type KudoErrorCode =
   | "INVALID_INPUT"
   | "NOT_AGENT_OWNER"
   | "ALREADY_MET"
+  | "ASK_NOT_MET"
+  | "ALREADY_PROVEN"
   | "NOT_PROMISER"
   | "ALREADY_REGISTERED"
   | "REVERTED"
