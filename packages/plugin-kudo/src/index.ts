@@ -202,12 +202,22 @@ function toAction(tool: KudoTool): Action {
       const current = tools.get(tool.name) ?? tool;
 
       let args: Record<string, unknown> = {};
+      const prompt = extractionPrompt(current, message, state, options);
       if (!noArgs) {
-        const raw = await runtime.useModel(ModelType.TEXT_SMALL, { prompt: extractionPrompt(current, message, state, options) });
+        const raw = await runtime.useModel(ModelType.TEXT_SMALL, { prompt });
         args = parseJSONObjectFromText(String(raw)) ?? {};
       }
 
-      const out = await runTool(current, args);
+      let out = await runTool(current, args);
+      // The small model sometimes returns no arguments or the wrong keys.
+      // Bad input is refused before anything is sent, so one retry with the
+      // large model, shown the validation error, is safe.
+      if (!out.ok && out.code === "INVALID_INPUT" && !noArgs) {
+        const retry = `${prompt}\n\nA previous answer was ${JSON.stringify(args)}, which was rejected: ${out.error}. Answer again with ONLY a corrected JSON object.`;
+        const raw = await runtime.useModel(ModelType.TEXT_LARGE, { prompt: retry });
+        args = parseJSONObjectFromText(String(raw)) ?? {};
+        out = await runTool(current, args);
+      }
       if (!out.ok) {
         logger.warn(`[kudo] ${tool.name} failed: ${out.error}`);
         await callback?.({ text: `Kudo ${tool.name} failed: ${out.error}`, actions: [meta.name] });

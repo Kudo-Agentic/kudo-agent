@@ -53,11 +53,13 @@ const say = (text: string) =>
 
 const reader = createKudo({ rpcUrl: rpc });
 const me = (await import("viem/accounts")).privateKeyToAccount(key as `0x${string}`).address;
-let a = await say("Register yourself on Kudo with the name 'Installed Ada'.");
+// The wallet already holds an identity (run.sh registered it), so the agent should find it, not register again.
+let a = await say("Register yourself on Kudo with the name 'Installed Ada', unless you already have an identity.");
 const ids = await reader.findAgentIds(me);
-ok(ids.length === 1, `REGISTER_KUDO_AGENT via the installed plugin (actions: ${a.join(", ")}; chain: id ${ids[0]})`);
+ok(ids.length === 1, `no second identity: the agent used its existing one (actions: ${a.join(", ")}; chain: id ${ids[0]})`);
+const before = (await reader.listCovenants({ agentWallet: me })).length;
 a = await say(`Mint a Kudo INVOICE covenant under your agent id ${ids[0]}: the counterparty writes a 200-word note on ERC-8004 and publishes it on IPFS; you pay 2 USDG within one hour of the link going up.`);
 const mine = await reader.listCovenants({ agentWallet: me });
-ok(mine.length === 1 && /2 USDG/.test(mine[0].promise), `MINT_COVENANT via the installed plugin (actions: ${a.join(", ")}; chain: ${mine[0] ? `#${mine[0].id} "${mine[0].promise}"` : "nothing"})`);
+ok(mine.length === before + 1 && /2 USDG/.test(mine[0].promise), `MINT_COVENANT via the installed plugin (actions: ${a.join(", ")}; chain: ${mine[0] ? `#${mine[0].id} "${mine[0].promise}"` : "nothing"})`);
 await eliza.stopAgents();
 process.exit(fail ? 1 : 0);

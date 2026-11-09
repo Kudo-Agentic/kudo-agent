@@ -7,6 +7,7 @@
 #   CONNECT_SNIPPETS=/path/to/kudo-client/src/components/connect/snippets.ts ./installed/run.sh
 #
 # Needs a fork on :8545 (see ../run.sh), node, bun and the claude CLI logged in.
+# Use a fresh fork: Hardhat's forking node has crashed mid-run on long sessions.
 # After npm publish, run it with REGISTRY=https://registry.npmjs.org to check
 # the real packages instead of the tarballs.
 set -uo pipefail
@@ -24,10 +25,11 @@ trap cleanup EXIT
 
 if [ -z "${REGISTRY:-}" ]; then
   echo "=== pack and publish to a local registry"
-  ( cd "$ROOT" && npm run build >/dev/null && mkdir -p "$WORK/tgz" && for w in @kudo-dev/sdk @kudo-dev/mcp @kudo-dev/plugin-kudo; do npm pack -w $w --pack-destination "$WORK/tgz" >/dev/null || exit 1; done )
+  ( cd "$ROOT" && npm run build >/dev/null && mkdir -p "$WORK/tgz" && for w in @kudo-dev/sdk @kudo-dev/mcp @kudo-dev/plugin-kudo; do npm pack -w $w --pack-destination "$WORK/tgz" >/dev/null 2>&1 || exit 1; done )
   ls "$WORK/tgz"
   for f in "$WORK"/tgz/*.tgz; do
-    tar -tzf "$f" | grep -q "package/dist/" ; ok "$([ $? = 0 ] && ! tar -xOzf "$f" package/package.json | grep -q '@kudo-dev/tools' && echo 1)" "$(basename "$f"): has dist/, and its package.json does not name the private @kudo-dev/tools"
+    HAS_DIST=$(tar -tzf "$f" | grep -c "^package/dist/"); NAMES_TOOLS=$(tar -xOzf "$f" package/package.json | grep -c '@kudo-dev/tools')
+    ok "$([ "$HAS_DIST" -gt 0 ] && [ "$NAMES_TOOLS" = 0 ] && echo 1)" "$(basename "$f"): has dist/ ($HAS_DIST files), and its package.json does not name the private @kudo-dev/tools"
   done
   cp "$T/verdaccio.yaml" "$WORK/"
   ( cd "$WORK" && npx -y verdaccio@6 --config ./verdaccio.yaml --listen 4873 > verdaccio.log 2>&1 ) & REG_PID=$!
@@ -61,14 +63,15 @@ echo "    \$ $(echo "$CMD" | sed "s/$KEY/0x<test key>/")"
 ( cd "$CC/project" && HOME=$CC/home bash -c "$CMD" ) >/dev/null 2>&1; ok "$([ $? = 0 ] && echo 1)" "claude mcp add succeeded"
 LIST=$(cd "$CC/project" && HOME=$CC/home timeout 180 claude mcp list 2>&1)
 ok "$(echo "$LIST" | grep -q "kudo.*Connected" && echo 1)" "claude mcp list: $(echo "$LIST" | grep kudo | sed "s/$KEY/0x<key>/" | cut -c1-110)"
-OUT=$(cd "$CC/project" && HOME=$CC/home timeout 900 claude -p --model sonnet --allowedTools mcp__kudo "Use the Kudo MCP tools. Mint an INVOICE covenant under my agent $AGENT_ID: the counterparty writes a 200-word ERC-8004 note on IPFS; I pay 2 USDG within one hour of the link going up. Don't ask me to confirm, just mint it and give me the covenant id." 2>&1)
+OUT=$(cd "$CC/project" && HOME=$CC/home timeout 900 claude -p --model sonnet --allowedTools=mcp__kudo -- "Use the Kudo MCP tools. Mint an INVOICE covenant under my agent $AGENT_ID: the counterparty writes a 200-word ERC-8004 note on IPFS; I pay 2 USDG within one hour of the link going up. Don't ask me to confirm, just mint it and give me the covenant id." 2>&1)
 N=$(cd "$ROOT" && node --input-type=module -e 'import { createKudo } from "@kudo-dev/sdk"; const l = await createKudo({ rpcUrl: process.argv[2] }).listCovenants({ agentWallet: process.argv[1] }); console.log(l.length + " " + (l[0]?.promise ?? ""))' $ME $RPC)
+echo "$OUT" | tail -4 | sed 's/^/    Claude: /'
 ok "$(echo "$N" | grep -q '^1 .*2 USDG' && echo 1)" "Claude Code minted through the installed server (chain: $N)"
 
 echo "=== Claude Desktop / Cursor / Windsurf JSON and Codex TOML"
 CL=$WORK/clients; mkdir -p "$CL/home"; cp "$T/clients.mjs" "$T/snippets.mjs" "$CL/"
 ( cd "$CL" && echo '{"type":"module","private":true}' > package.json && HOME=$CL/home npm i --no-audit --no-fund @modelcontextprotocol/sdk smol-toml >/dev/null 2>&1 )
-OUT=$(cd "$CL" && HOME=$CL/home node clients.mjs $KEY $AGENT_ID $RPC 2>&1); echo "$OUT" | sed "s/$KEY/0x<key>/g"
+OUT=$(cd "$CL" && HOME=$CL/home node --no-warnings clients.mjs $KEY $AGENT_ID $RPC 2>&1); echo "$OUT" | sed "s/$KEY/0x<key>/g"
 ok "$([ $? = 0 ] && ! echo "$OUT" | grep -q "✗" && echo 1)" "each MCP client config parses and starts the installed server"
 
 echo "=== kudo-mcp --http from the installed package, with a key set"
@@ -84,8 +87,9 @@ INSTALL=$(snippet eliza-install)
 echo "    \$ $INSTALL"
 ( cd "$EL" && HOME=$EL/home bash -c "$INSTALL" >/dev/null 2>&1 ); ok "$([ $? = 0 ] && [ -d "$EL/node_modules/@kudo-dev/plugin-kudo/dist" ] && echo 1)" "bun add @kudo-dev/plugin-kudo installed the tarball"
 ( cd "$EL" && HOME=$EL/home bun add @elizaos/core@1.7.2 @elizaos/plugin-bootstrap@1.7.2 @elizaos/plugin-sql@1.7.2 @kudo-dev/sdk viem >/dev/null 2>&1 )
-OUT=$(cd "$EL" && HOME=$EL/home PGLITE_DATA_DIR=$EL/.db timeout 1800 bun eliza.ts $KEY $RPC 2>&1 | grep -E "✓|✗"); echo "$OUT"
-ok "$([ -n "$OUT" ] && ! echo "$OUT" | grep -q "✗" && echo 1)" "the character from the page runs the installed plugin"
+OUT=$(cd "$EL" && HOME=$EL/home PGLITE_DATA_DIR=$EL/.db timeout 1800 bun eliza.ts $KEY $RPC 2>&1 | grep -E "^  (✓|✗) "); echo "$OUT"
+# Every expected check must be there: a crash or a dead fork prints fewer lines.
+ok "$([ "$(echo "$OUT" | grep -c "^  ✓ ")" = 3 ] && ! echo "$OUT" | grep -q "✗" && echo 1)" "the character from the page runs the installed plugin (3/3 checks printed and passed)"
 
 echo "$PASS passed, $FAIL failed  (work dir $WORK)"
 [ "$FAIL" = 0 ]

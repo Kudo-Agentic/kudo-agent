@@ -40,6 +40,23 @@ describe("kudoPlugin", () => {
     expect(callback.mock.calls[0]?.[0].text).toMatch(/LOAN|INVOICE|ADVANCE/);
   });
 
+  it("retries once with the large model when the small model's arguments fail validation", async () => {
+    // As in an e2e run: the small model returned no id or proof for MEET_ASK.
+    const calls: string[] = [];
+    const rt = {
+      getSetting: (k: string) => ({ KUDO_PRIVATE_KEY: "0x" + "33".repeat(32) })[k as "KUDO_PRIVATE_KEY"] ?? null,
+      useModel: vi.fn(async (type: string, p: { prompt: string }) => {
+        calls.push(type);
+        return type === "TEXT_SMALL" ? "{}" : (expect(p.prompt).toMatch(/rejected: .*id/), '{"type":"GIFT","ask":"a b c","promise":"d e f","agentId":1}');
+      }),
+    } as unknown as IAgentRuntime;
+    const callback = vi.fn(async (_c: { text?: string }) => []);
+    await action("MINT_COVENANT").handler(rt, message("mint"), undefined, undefined, callback);
+    expect(calls).toEqual(["TEXT_SMALL", "TEXT_LARGE"]);
+    // The retry's arguments were validated too (GIFT is refused), and nothing more was tried.
+    expect(callback.mock.calls[0]?.[0].text).toMatch(/LOAN|INVOICE|ADVANCE/);
+  });
+
   it("names Eliza actions, not MCP tools, in the status hint", async () => {
     const callback = vi.fn(async (_c: { text?: string }) => []);
     const rt = runtime({});
