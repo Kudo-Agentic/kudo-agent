@@ -75,6 +75,16 @@ export const identityRegistryAbi = [
     ],
     anonymous: false,
   },
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "tokenId", type: "uint256", indexed: true },
+    ],
+    anonymous: false,
+  },
 ] as const;
 
 /** The two reads a reputation summary needs. `getSummary` refuses an empty client list. */

@@ -3,6 +3,7 @@ import {
   decodeEventLog,
   encodeFunctionData,
   formatUnits,
+  getAbiItem,
   hexToString,
   http,
   parseEventLogs,
@@ -256,8 +257,9 @@ export class Kudo {
    * The ERC-8004 ids a wallet owns, oldest first.
    *
    * The registry has no reverse lookup, so this reads `Registered` events
-   * filtered on `owner`, walking back one RPC-sized window at a time until it
-   * has found as many ids as `balanceOf` says exist.
+   * filtered on `owner` and `Transfer` events filtered on `to` (ids sent to
+   * the wallet), walking back one RPC-sized window at a time until it has
+   * found as many currently owned ids as `balanceOf` says exist.
    */
   async findAgentIds(wallet?: Address, options: { maxWindows?: number } = {}): Promise<bigint[]> {
     const owner = wallet ?? this.address;
@@ -272,34 +274,37 @@ export class Kudo {
     });
     if (balance === 0n) return [];
 
-    const found = new Set<bigint>();
+    const registered = getAbiItem({ abi: identityRegistryAbi, name: "Registered" });
+    const transfer = getAbiItem({ abi: identityRegistryAbi, name: "Transfer" });
+    // Registered names the first owner and Transfer a past recipient; either
+    // may since have moved the id on, so every candidate is checked once.
+    const checked = new Map<bigint, boolean>();
+    const owns = (id: bigint) =>
+      this.publicClient
+        .readContract({ address: registry, abi: identityRegistryAbi, functionName: "ownerOf", args: [id] })
+        .then((o) => o.toLowerCase() === owner.toLowerCase())
+        .catch(() => false);
+    const ownedCount = () => BigInt([...checked.values()].filter(Boolean).length);
+
     const range = this.network.maxLogRange;
     let to = await this.publicClient.getBlockNumber();
-    for (let i = 0; i < (options.maxWindows ?? 20) && to > 0n; i++) {
+    for (let i = 0; i < (options.maxWindows ?? 20) && to >= 0n; i++) {
       const from = to > range ? to - range + 1n : 0n;
-      const logs = await this.publicClient.getLogs({
-        address: registry,
-        event: identityRegistryAbi[6],
-        args: { owner },
-        fromBlock: from,
-        toBlock: to,
-      });
-      for (const log of logs) if (log.args.agentId !== undefined) found.add(log.args.agentId);
-      if (BigInt(found.size) >= balance) break;
+      const [minted, received] = await Promise.all([
+        this.publicClient.getLogs({ address: registry, event: registered, args: { owner }, fromBlock: from, toBlock: to }),
+        this.publicClient.getLogs({ address: registry, event: transfer, args: { to: owner }, fromBlock: from, toBlock: to }),
+      ]);
+      const candidates = new Set<bigint>();
+      for (const log of minted) if (log.args.agentId !== undefined) candidates.add(log.args.agentId);
+      for (const log of received) if (log.args.tokenId !== undefined) candidates.add(log.args.tokenId);
+      const fresh = [...candidates].filter((id) => !checked.has(id));
+      const results = await Promise.all(fresh.map(owns));
+      fresh.forEach((id, j) => checked.set(id, results[j]!));
+      if (ownedCount() >= balance || from === 0n) break;
       to = from - 1n;
     }
 
-    // Registered names the first owner; an id can since have been transferred.
-    const ids = [...found].sort((a, b) => (a < b ? -1 : 1));
-    const owned = await Promise.all(
-      ids.map((id) =>
-        this.publicClient
-          .readContract({ address: registry, abi: identityRegistryAbi, functionName: "ownerOf", args: [id] })
-          .then((o) => o.toLowerCase() === owner.toLowerCase())
-          .catch(() => false),
-      ),
-    );
-    return ids.filter((_, i) => owned[i]);
+    return [...checked].filter(([, owned]) => owned).map(([id]) => id).sort((a, b) => (a < b ? -1 : 1));
   }
 
   /** ETH balance (gas) as a decimal string. */
@@ -640,10 +645,21 @@ export class Kudo {
         options.onChange?.(covenant);
       }
       if (until.has(covenant.stage)) return covenant;
-      if (Date.now() + interval > deadline) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
         throw new KudoError("TIMEOUT", `Covenant ${covenant.id} is still ${covenant.stage}.`);
       }
-      await new Promise((r) => setTimeout(r, interval));
+      // Sleep until the next poll or the deadline, whichever is first, so the
+      // last read lands at the deadline; an abort wakes the sleep at once.
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timer);
+          options.signal?.removeEventListener("abort", done);
+          resolve();
+        };
+        const timer = setTimeout(done, Math.min(interval, remaining));
+        options.signal?.addEventListener("abort", done, { once: true });
+      });
     }
   }
 
