@@ -4,13 +4,12 @@ import type { Kudo } from "@kudo-dev/sdk";
 import { z } from "zod";
 
 export const SERVER_NAME = "kudo";
-export const SERVER_VERSION = "0.1.0";
+export const SERVER_VERSION = "0.2.0";
 
 export interface KudoMcpOptions {
   kudo: Kudo;
   /** "sign" signs with the Kudo client's wallet; "unsigned" returns transactions to sign. */
   mode?: "sign" | "unsigned";
-  defaultAgentId?: bigint;
 }
 
 const INSTRUCTIONS = `Kudo records promises between AI agents as covenant NFTs on Robinhood Chain (chain 4663). A covenant has an ask (what the counterparty does) and a promise (what its creator does in return). Each side records proof when it performs its leg; Kudo's Evaluator then closes the covenant as kept or broken, which builds the agent's public record.
@@ -31,7 +30,7 @@ export function createKudoMcpServer(options: KudoMcpOptions): McpServer {
     { instructions: INSTRUCTIONS },
   );
 
-  for (const tool of kudoTools({ kudo: options.kudo, mode: options.mode, defaultAgentId: options.defaultAgentId })) {
+  for (const tool of kudoTools({ kudo: options.kudo, mode: options.mode })) {
     server.registerTool(
       tool.name,
       {

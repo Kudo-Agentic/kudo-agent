@@ -307,6 +307,17 @@ export class Kudo {
     return [...checked].filter(([, owned]) => owned).map(([id]) => id).sort((a, b) => (a < b ? -1 : 1));
   }
 
+  /**
+   * The ERC-8004 id this wallet registered itself, or undefined if it never
+   * registered one it still owns: see {@link findRegisteredAgentId}. Ids sent
+   * to the wallet are not counted; {@link findAgentIds} finds those too.
+   */
+  async findRegisteredAgentId(wallet?: Address): Promise<bigint | undefined> {
+    const owner = wallet ?? this.address;
+    if (!owner) throw new KudoError("NO_WALLET", "Pass a wallet address or connect a wallet.");
+    return findRegisteredAgentId(this.publicClient, this.network.identityRegistry, owner, this.network.maxLogRange);
+  }
+
   /** ETH balance (gas) as a decimal string. */
   async ethBalance(wallet?: Address): Promise<string> {
     const who = wallet ?? this.address;
@@ -745,6 +756,54 @@ export class Kudo {
       promiseProof: raw.promiseSettlementData,
       url: this.covenantUrl(id),
     };
+  }
+}
+
+/** The two reads findRegisteredAgentId needs, so a test can stand in for the chain. */
+export type RegistryReader = Pick<PublicClient, "readContract" | "getBlockNumber" | "getLogs">;
+
+/**
+ * The ERC-8004 id `owner` registered, from the registry's `Registered` events
+ * filtered on its indexed owner, or undefined if it never registered one it
+ * still owns. `balanceOf` comes first, so a wallet with no identity costs one
+ * call. Otherwise this walks back from the latest block one `maxLogRange`
+ * window at a time and returns the most recent registration the wallet still
+ * owns. An RPC failure throws: it must never read as "no identity", which
+ * would lead a caller to register twice.
+ */
+export async function findRegisteredAgentId(
+  client: RegistryReader,
+  registry: Address,
+  owner: Address,
+  maxLogRange: bigint,
+): Promise<bigint | undefined> {
+  const balance = await client.readContract({
+    address: registry,
+    abi: identityRegistryAbi,
+    functionName: "balanceOf",
+    args: [owner],
+  });
+  if (balance === 0n) return undefined;
+
+  const registered = getAbiItem({ abi: identityRegistryAbi, name: "Registered" });
+  let to = await client.getBlockNumber();
+  for (;;) {
+    const from = to >= maxLogRange ? to - maxLogRange + 1n : 0n;
+    const logs = await client.getLogs({ address: registry, event: registered, args: { owner }, fromBlock: from, toBlock: to });
+    // Newest first: an id may since have been transferred away.
+    for (const log of [...logs].reverse()) {
+      const id = log.args.agentId;
+      if (id === undefined) continue;
+      const current = await client.readContract({
+        address: registry,
+        abi: identityRegistryAbi,
+        functionName: "ownerOf",
+        args: [id],
+      });
+      if (current.toLowerCase() === owner.toLowerCase()) return id;
+    }
+    if (from === 0n) return undefined;
+    to = from - 1n;
   }
 }
 

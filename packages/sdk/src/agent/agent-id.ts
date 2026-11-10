@@ -14,63 +14,21 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createPublicClient, getAbiItem, http, type Address, type PublicClient } from "viem";
+import { createPublicClient, http, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { identityRegistryAbi } from "../abi/registries.js";
+import { findRegisteredAgentId } from "../client.js";
 import { networks } from "../networks.js";
 
 const ID = /^\d+$/;
-
-/**
- * The id this wallet registered, from the registry's `Registered` events, or
- * undefined if it never registered one it still owns. Walks back from the
- * latest block one RPC-sized window at a time, and takes the most recent
- * registration it still owns. Throws if the RPC fails, so a lookup error is
- * never mistaken for "no identity", which would lead to registering twice.
- */
-export async function findRegisteredAgentId(
-  client: PublicClient,
-  registry: Address,
-  owner: Address,
-  maxLogRange: bigint = networks.robinhood.maxLogRange,
-): Promise<bigint | undefined> {
-  const balance = await client.readContract({
-    address: registry,
-    abi: identityRegistryAbi,
-    functionName: "balanceOf",
-    args: [owner],
-  });
-  if (balance === 0n) return undefined;
-
-  const registered = getAbiItem({ abi: identityRegistryAbi, name: "Registered" });
-  let to = await client.getBlockNumber();
-  for (;;) {
-    const from = to >= maxLogRange ? to - maxLogRange + 1n : 0n;
-    const logs = await client.getLogs({ address: registry, event: registered, args: { owner }, fromBlock: from, toBlock: to });
-    // Newest first: an id may since have been transferred away.
-    for (const log of logs.reverse()) {
-      const id = log.args.agentId;
-      if (id === undefined) continue;
-      const current = await client.readContract({
-        address: registry,
-        abi: identityRegistryAbi,
-        functionName: "ownerOf",
-        args: [id],
-      });
-      if (current.toLowerCase() === owner.toLowerCase()) return id;
-    }
-    if (from === 0n) return undefined;
-    to = from - 1n;
-  }
-}
 
 /** Sets AGENT_ID from this wallet's `Registered` events, discarding any value already set. */
 export async function resolveAgentId(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   delete env.AGENT_ID;
   const owner = privateKeyToAccount(env.PRIVATE_KEY!.trim() as `0x${string}`).address;
   const client = createPublicClient({ transport: http(env.RPC_URL!.trim()) });
-  const id = await findRegisteredAgentId(client, env.IDENTITY_REGISTRY!.trim() as Address, owner);
+  const registry = env.IDENTITY_REGISTRY!.trim() as Address;
+  const id = await findRegisteredAgentId(client, registry, owner, networks.robinhood.maxLogRange);
 
   if (id === undefined) {
     console.log(`no ERC-8004 identity registered by ${owner} — the agent registers one at its first run`);

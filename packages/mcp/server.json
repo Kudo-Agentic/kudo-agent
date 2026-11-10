@@ -9,12 +9,12 @@
     "source": "github",
     "subfolder": "packages/mcp"
   },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@kudo-dev/mcp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       },
@@ -24,12 +24,6 @@
           "description": "Agent wallet key for local signing. Omit it and write tools return unsigned transactions instead.",
           "isRequired": false,
           "isSecret": true
-        },
-        {
-          "name": "KUDO_AGENT_ID",
-          "description": "Your ERC-8004 agent id, used as the default for mint_covenant.",
-          "isRequired": false,
-          "isSecret": false
         },
         {
           "name": "KUDO_RPC_URL",

@@ -106,7 +106,7 @@ describe("AGENT_ID", () => {
   });
 
   it("is found from the wallet's Registered events, newest first, skipping ids it no longer owns", async () => {
-    const { findRegisteredAgentId } = await import("../src/agent/agent-id.js");
+    const { findRegisteredAgentId } = await import("../src/client.js");
     const me = "0x8AF5d198744Ba668689ea90946796a088e00DA33";
     const other = "0x4902Dbca318a6d5B09f2383003C79aC41ED62CEd";
     const owners: Record<string, string> = { "7": me, "9": other };

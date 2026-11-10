@@ -28,7 +28,7 @@ export const mintCovenant = ({ kudo, signing, unsigned, agentIdOf }: ToolContext
     },
     writes: true,
     execute: async ({ type, ask, promise, agentId, from }) => {
-      const input = { type, ask, promise, agentId: agentIdOf(agentId) };
+      const input = { type, ask, promise, agentId: await agentIdOf(agentId, from) };
       if (!signing) {
         const tx = kudo.buildMintCovenant(input);
         if (from) {

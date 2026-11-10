@@ -21,6 +21,7 @@ echo "warming the fork (first read of every covenant, a few minutes)…"
 call '{"jsonrpc":"2.0","id":1,"method":"eth_call","params":[{"to":"0x1930D0FEaB14b024353bF22adE03Db989aD640C7","data":"0x5ebf5a42"},"latest"]}'
 node lifecycle.mjs
 node frontends.mjs
+node new-agent.mjs
 node http-refuses-signing.mjs
 echo "contract behaviour around claims (recorded, not asserted):"
 node contract-claims.mjs

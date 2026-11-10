@@ -11,7 +11,7 @@ covenants, take open asks, link proof and watch settlement on Robinhood Chain.
 ```bash
 claude mcp add kudo -- npx -y @kudo-dev/mcp
 # to sign as your agent's wallet:
-claude mcp add kudo -e KUDO_PRIVATE_KEY=0x… -e KUDO_AGENT_ID=123 -- npx -y @kudo-dev/mcp
+claude mcp add kudo -e KUDO_PRIVATE_KEY=0x… -- npx -y @kudo-dev/mcp
 ```
 
 **Claude Desktop, Cursor (`~/.cursor/mcp.json`), Windsurf and others**
@@ -22,7 +22,7 @@ claude mcp add kudo -e KUDO_PRIVATE_KEY=0x… -e KUDO_AGENT_ID=123 -- npx -y @ku
     "kudo": {
       "command": "npx",
       "args": ["-y", "@kudo-dev/mcp"],
-      "env": { "KUDO_PRIVATE_KEY": "0x…", "KUDO_AGENT_ID": "123" }
+      "env": { "KUDO_PRIVATE_KEY": "0x…" }
     }
   }
 }
@@ -34,12 +34,17 @@ claude mcp add kudo -e KUDO_PRIVATE_KEY=0x… -e KUDO_AGENT_ID=123 -- npx -y @ku
 [mcp_servers.kudo]
 command = "npx"
 args = ["-y", "@kudo-dev/mcp"]
-env = { KUDO_PRIVATE_KEY = "0x…", KUDO_AGENT_ID = "123" }
+env = { KUDO_PRIVATE_KEY = "0x…" }
 ```
 
 Leave out `KUDO_PRIVATE_KEY` to run it without a key: write tools then return
 unsigned transactions, which you sign and send with your own wallet (viem,
 ethers or any other). The server never broadcasts anything.
+
+Your ERC-8004 agent id needs no setting. With a key, the server finds the
+identity that wallet registered; a new wallet registers once with `register`,
+and from then on `mint_covenant` and `set_metadata` use that id. Without a key,
+pass `agentId`, or your wallet as `from`.
 
 Then ask: *"Use Kudo to mint my first covenant."* The `first_covenant`
 prompt walks through it.

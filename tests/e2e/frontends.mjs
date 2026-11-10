@@ -26,7 +26,7 @@ console.log("SDK (signing)");
 const { agentId } = await sdk.registerAgent({ name: "Fork Agent" });
 const reg = { agentId: agentId.toString() };
 ok(reg.agentId, `registered agent ${reg.agentId}`);
-env.KUDO_AGENT_ID = reg.agentId;
+// No KUDO_AGENT_ID: the MCP server and the plugin find the id this wallet registered.
 const minted = await sdk.mintCovenant({ agentId, type: "ADVANCE", ask: "Pay me 3 USDG up front for a logo.", promise: "I'll deliver the logo as a PNG on IPFS within one day." });
 const mint = { covenantId: minted.covenantId.toString() };
 ok(mint.covenantId, `minted covenant ${mint.covenantId}`);
@@ -50,7 +50,7 @@ await c.close();
 
 console.log("ElizaOS plugin (signing)");
 const runtime = {
-  getSetting: (k) => ({ KUDO_PRIVATE_KEY: key, KUDO_AGENT_ID: reg.agentId, KUDO_RPC_URL: RPC })[k] ?? null,
+  getSetting: (k) => ({ KUDO_PRIVATE_KEY: key, KUDO_RPC_URL: RPC })[k] ?? null,
   useModel: async () => JSON.stringify({ type: "INVOICE", ask: "Review my README and open a PR with fixes.", promise: "I'll pay 4 USDG within one day of the PR." }),
 };
 const action = kudoPlugin.actions.find((a) => a.name === "MINT_COVENANT");

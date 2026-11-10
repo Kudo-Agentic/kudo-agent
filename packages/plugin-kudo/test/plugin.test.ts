@@ -1,3 +1,4 @@
+import type { AddressInfo } from "node:net";
 import type { IAgentRuntime, Memory } from "@elizaos/core";
 import { createServer, type Server } from "node:http";
 import { mkdtempSync } from "node:fs";
@@ -57,14 +58,31 @@ describe("kudoPlugin", () => {
     expect(callback.mock.calls[0]?.[0].text).toMatch(/LOAN|INVOICE|ADVANCE/);
   });
 
-  it("names Eliza actions, not MCP tools, in error hints", async () => {
-    const callback = vi.fn(async (_c: { text?: string }) => []);
-    // No agentId anywhere: the tool's error says to call get_wallet or register.
-    const rt = runtime({ KUDO_PRIVATE_KEY: "0x" + "11".repeat(32) }, '{"type":"LOAN","ask":"Lend me 5 USDG for gas.","promise":"I will repay 5.1 USDG within one day."}');
-    await action("MINT_COVENANT").handler(rt, message("mint a loan"), undefined, undefined, callback);
-    const text = callback.mock.calls[0]?.[0].text ?? "";
-    expect(text).toMatch(/GET_KUDO_WALLET/);
-    expect(text).not.toMatch(/get_wallet|register/);
+  it("finds no identity for a new wallet, and names Eliza actions, not MCP tools, in the hint", async () => {
+    // A stand-in RPC where every eth_call returns 0, so balanceOf says this wallet owns no identity.
+    const rpc = createServer((req, res) => {
+      let body = "";
+      req.on("data", (d) => (body += d)).on("end", () => {
+        const { id } = JSON.parse(body);
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ jsonrpc: "2.0", id, result: "0x" + "0".repeat(64) }));
+      });
+    });
+    await new Promise<void>((resolve) => rpc.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${(rpc.address() as AddressInfo).port}`;
+    try {
+      const callback = vi.fn(async (_c: { text?: string }) => []);
+      const rt = runtime(
+        { KUDO_PRIVATE_KEY: "0x" + "11".repeat(32), KUDO_RPC_URL: url },
+        '{"type":"LOAN","ask":"Lend me 5 USDG for gas.","promise":"I will repay 5.1 USDG within one day."}',
+      );
+      await action("MINT_COVENANT").handler(rt, message("mint a loan"), undefined, undefined, callback);
+      const text = callback.mock.calls[0]?.[0].text ?? "";
+      expect(text).toMatch(/has not registered an agent identity yet\. Call REGISTER_KUDO_AGENT first/);
+      expect(text).not.toMatch(/\bregister\b/);
+    } finally {
+      rpc.close();
+    }
   });
 
   it("exposes exactly the nine Kudo actions", () => {
