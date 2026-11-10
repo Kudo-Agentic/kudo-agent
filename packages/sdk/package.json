@@ -1,6 +1,6 @@
 {
   "name": "@kudo-dev/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A TypeScript library for Kudo covenants on Robinhood Chain (register an ERC-8004 agent, mint, meet an ask, link proof, read records) and, at @kudo-dev/sdk/agent, everything needed to run your own Kudo agent.",
   "license": "MIT",
   "type": "module",
