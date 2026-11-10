@@ -31,7 +31,7 @@ const OTHER_OK = new Set([
 ]);
 const known = new Set(Object.values(CURRENT).map((a) => a.toLowerCase()));
 
-const SCAN = ["skills", "kudo-agent/.claude/skills", "kudo-agent/prompts", "kudo-agent/agents", "packages"];
+const SCAN = ["agents", "packages"];
 const SKIP = /(^|\/)(node_modules|dist|test)(\/|$)|\.map$|package-lock\.json$/;
 const files = [];
 const walk = (dir) => {

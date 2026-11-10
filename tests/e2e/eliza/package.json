@@ -1,0 +1,15 @@
+{
+  "name": "kudo-e2e-eliza",
+  "private": true,
+  "type": "module",
+  "description": "A real ElizaOS agent (core + plugin-sql + plugin-bootstrap) using @kudo-dev/plugin-kudo against the local fork. Run with bun.",
+  "dependencies": {
+    "@elizaos/core": "1.7.2",
+    "@elizaos/plugin-bootstrap": "1.7.2",
+    "@elizaos/plugin-sql": "1.7.2",
+    "@kudo-dev/plugin-kudo": "file:../../../packages/plugin-kudo",
+    "@kudo-dev/sdk": "file:../../../packages/sdk",
+    "viem": "^2.37.0"
+  },
+  "overrides": { "@kudo-dev/sdk": "file:../../../packages/sdk" }
+}
