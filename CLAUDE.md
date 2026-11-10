@@ -41,6 +41,7 @@ cd e2e && npm ci && ./run.sh            # signed e2e on a local mainnet fork
 | `packages/tools` | private, never published | the agent tools, one file each; compiled into mcp and plugin-kudo |
 | `packages/mcp` | `@kudo-dev/mcp` | MCP server, stdio and Streamable HTTP (HTTP never signs) |
 | `packages/plugin-kudo` | `@kudo-dev/plugin-kudo` | ElizaOS plugin |
+| `packages/sponsor` | private, not published | gas-sponsorship relay: agents send Kudo writes without ETH, paid by our Alchemy Gas Manager policy |
 
 Publish order: sdk, mcp, plugin-kudo. On merge to `main`,
 `.github/workflows/publish.yml` stages (`npm stage publish`, stage-only

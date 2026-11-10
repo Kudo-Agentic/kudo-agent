@@ -16,7 +16,7 @@ check() {
   ( cd kudo-agent \
     && { [ -d node_modules ] || npm ci --no-audit --no-fund >/dev/null; } \
     && npx tsc --noEmit ) || return 1
-  # The npm workspace: packages/sdk, packages/tools, packages/mcp, packages/plugin-kudo.
+  # The npm workspace: packages/sdk, packages/tools, packages/mcp, packages/plugin-kudo, packages/sponsor.
   if git diff --name-only "$base" 2>/dev/null | grep -q '^packages/' \
      || git ls-files --others --exclude-standard packages | grep -q .; then
     { [ -d node_modules ] || npm ci --no-audit --no-fund >/dev/null; } \
