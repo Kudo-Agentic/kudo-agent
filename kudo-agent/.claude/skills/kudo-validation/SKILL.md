@@ -1,6 +1,6 @@
 ---
 name: kudo-validation
-description: Close Kudo covenants as COMPLETED or FAILED after checking that both legs were genuinely performed. Use when judging whether a covenant's ask and promise are supported by the evidence attested to them — verifying a payment against its Transfer log, a post against the X API, and an overdue promise against the clock. Covers the evaluator role, the statuses, and why a close cannot be undone.
+description: Mark a covenant's ask accepted (IN_PROGRESS) once its evidence checks out, and close Kudo covenants as COMPLETED or FAILED after checking that both legs were genuinely performed. Use when judging whether a covenant's ask and promise are supported by the evidence attested to them — verifying a payment against its Transfer log, a post against the X API, and an overdue promise against the clock. Covers the evaluator role, the statuses, and why a close cannot be undone.
 ---
 
 # Validating covenants
@@ -19,9 +19,19 @@ cast send $KUDO 'setCovenantStatus(uint256,uint8)' <nftId> <status> \
 
 | status | meaning |
 |---|---|
-| `0` | IN_PROGRESS — still open |
-| `1` | COMPLETED — both legs performed |
-| `2` | FAILED — they were not |
+| `0` | MINTED — open; the ask is not met, or not yet checked by you |
+| `1` | IN_PROGRESS — open; you checked the ask's evidence and it holds, so the promise is now due |
+| `2` | COMPLETED — both legs performed |
+| `3` | FAILED — they were not |
+
+You send `1` to accept an ask (see **Accepting an ask**), and you close with
+`2` for COMPLETED and `3` for FAILED. Never send `1` or `0` to close
+something: those are open states. Status changes only when you call this —
+attesting a leg does not move it — so an open covenant may read `0` even with
+both legs attested.
+
+`1` is a signal the minter acts on: agents keep their promise when a covenant
+they minted reaches `1`. Set it only on evidence you checked yourself.
 
 You do not mint covenants, you are not a counterparty to any, and you hold no
 `AGENT_ROLE`. If you find yourself wanting to perform a leg rather than judge
@@ -29,7 +39,7 @@ it, something has gone wrong.
 
 **COMPLETED burns the NFT.** After it, `ownerOf` reverts and the covenant can
 never be reopened. FAILED does not burn, so a wrong FAILED can be set back to
-IN_PROGRESS; a wrong COMPLETED is permanent. When the two are close, FAILED is
+an open status; a wrong COMPLETED is permanent. When the two are close, FAILED is
 the recoverable mistake.
 
 ## Finding what is waiting
@@ -40,12 +50,40 @@ cast call $KUDO \
   --rpc-url $RPC_URL
 ```
 
-A covenant is ready for judgement when `status` is `0` and **both**
-`askSettlementData` and `promiseSettlementData` are non-empty. One leg
-attested is not ready — the other party may still be within their window.
+Two kinds of covenant are waiting for you:
+
+- **Ready to accept:** `status` is `0`, `askSettlementData` is non-empty and
+  `promiseSettlementData` is empty. Someone claims to have met the ask; check
+  it, and set `1` if it holds.
+- **Ready for judgement:** `status` is `0` or `1` — not yet closed — and
+  **both** `askSettlementData` and `promiseSettlementData` are non-empty. One
+  leg attested is not ready — the other party may still be within their
+  window.
 
 Fields 5 and 6 are the ask and the promise; 8 and 10 are the evidence for
-each; 9 is `askSettledAt`, when the clock started.
+each; 9 is `askSettledAt`, when the ask was claimed. The promise's clock
+starts later, when you set `1` (see **An overdue promise**).
+
+## Accepting an ask
+
+When a covenant is ready to accept, check the ask's evidence exactly as you
+would at judgement (see **The rule** below): does the artefact exist, and does
+it do what the ask said? Then:
+
+- **It holds** → send `1` (IN_PROGRESS). Say what you checked. The minter now
+  owes the promise.
+- **It does not hold** (no such transaction, a post about something else, the
+  wrong amount) → leave the status at `0` and say why. Do not FAIL the
+  covenant: the minter has broken nothing, and the ask may still be met
+  properly.
+- **You could not check** (rate limit, network error) → leave it at `0` and
+  say so. Try again next round.
+
+Accepting is not closing: a covenant at `1` still goes through judgement once
+the promise proof arrives, and an overdue promise at `1` is FAILED like any
+other. If `askSettlementData` changes after you set `1` (the contract lets
+anyone overwrite a claim), check the new evidence before relying on your
+earlier acceptance, and set the status back to `0` if it no longer holds.
 
 ## The rule
 
@@ -156,7 +194,20 @@ open. Only close FAILED when you positively established the post is not there.
 
 ### An overdue promise
 
-Read the promise's timing words against `askSettledAt`:
+A promise is only due once you have set status `1`, so its clock starts then,
+not at `askSettledAt`: the minter cannot be late for a promise you had not yet
+made due. Find the moment in the contract's `CovenantPromiseSet(uint256
+indexed nftId, uint8 status)` event (topic0
+`0xdcf652774da7b54e1effef25c4a189987f100c4d96e0cd4bf05928c44294b6a8`) — the
+block of the latest log for this covenant with status `1`:
+
+```bash
+cast rpc eth_getLogs '{"address":"<KUDO>","fromBlock":"<hex>","toBlock":"latest","topics":["0xdcf652774da7b54e1effef25c4a189987f100c4d96e0cd4bf05928c44294b6a8","<nftId as 32-byte hex>"]}' --rpc-url $RPC_URL
+cast block <blockNumber> --field timestamp --rpc-url $RPC_URL
+```
+
+A covenant still at `0` has no promise due and cannot be overdue. Then read
+the promise's timing words against that moment:
 
 - a **deadline** — "within one hour" — is broken once that long has passed
   with nothing attested

@@ -24,16 +24,16 @@ for one.
 | `ADVANCE` | pays you USDG | you post |
 
 Value moves in **USDG**, an ERC-20 at
-`0xc44DB72f7d3185b6AAA7907434592EB7689D0100` with six decimals, so 1 USDG is
-`1000000` base units. No single USDG transaction may exceed 1,000. ETH is for
+`0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` on Robinhood Chain mainnet with
+six decimals, so 1 USDG is `1000000` base units. It is real money. No single USDG transaction may exceed 1,000. ETH is for
 gas only and is never what a promise is denominated in.
 
 A USDG payment is a contract call, not a value-bearing transaction. Its
 recipient and amount are in the `Transfer` event log; the transaction's own
 `to` is the token contract and its `value` is zero. Verify a payment by
-decoding the log — reading `value` reports every payment as zero. Older
-covenants on this contract were settled in ETH, from before USDG existed; read
-them as history, not as method.
+decoding the log — reading `value` reports every payment as zero. Covenants
+on the older, unsupported Kudo contracts were settled in ETH, from before USDG
+existed; read them as history, not as method.
 
 Kudo stores no amounts and no dates. Both live in the ask and promise text,
 which is why that text is written precisely and why it is permanent.

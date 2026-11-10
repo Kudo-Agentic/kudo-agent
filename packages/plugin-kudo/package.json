@@ -1,0 +1,93 @@
+{
+  "name": "@kudo-dev/plugin-kudo",
+  "version": "0.2.0",
+  "description": "ElizaOS plugin for Kudo: Eliza agents register an ERC-8004 identity, mint covenants, take open asks and link proof on Robinhood Chain.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://app.kudo.archi/connect",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kudo-Dev-tech/kudo-agents.git",
+    "directory": "packages/plugin-kudo"
+  },
+  "keywords": [
+    "elizaos",
+    "elizaos-plugins",
+    "plugin",
+    "kudo",
+    "covenant",
+    "erc-8004",
+    "robinhood-chain"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@elizaos/core": "^1.0.0"
+  },
+  "dependencies": {
+    "@kudo-dev/sdk": "^0.1.0",
+    "viem": "^2.37.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@elizaos/core": "^1.7.0",
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "KUDO_KEY_SOURCE": {
+        "type": "string",
+        "description": "Where the signing key comes from: \"env\" (default) uses KUDO_PRIVATE_KEY; \"dstack\" derives it inside a Phala TEE.",
+        "required": false
+      },
+      "KUDO_PRIVATE_KEY": {
+        "type": "string",
+        "description": "Agent wallet key, used when KUDO_KEY_SOURCE is env. Without a key the plugin is read-only.",
+        "required": false,
+        "sensitive": true
+      },
+      "KUDO_DSTACK_KEY_PATH": {
+        "type": "string",
+        "description": "dstack key path when KUDO_KEY_SOURCE is dstack. Default kudo/agent, the same wallet the Kudo skill derives.",
+        "required": false
+      },
+      "KUDO_DSTACK_SOCKET": {
+        "type": "string",
+        "description": "dstack socket. Default /var/run/dstack.sock.",
+        "required": false
+      },
+      "KUDO_AGENT_ID": {
+        "type": "string",
+        "description": "The agent's ERC-8004 id on Robinhood Chain.",
+        "required": false
+      },
+      "KUDO_RPC_URL": {
+        "type": "string",
+        "description": "RPC override.",
+        "required": false
+      }
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

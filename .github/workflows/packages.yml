@@ -1,0 +1,48 @@
+# Unit tests for the public Kudo packages. Never publishes anything.
+name: packages
+
+on:
+  pull_request:
+    paths: ["packages/**", "skills/**", "kudo-agent/.claude/skills/**", "kudo-agent/prompts/**", "kudo-agent/agents/**", "scripts/**", "e2e/**", "package.json", "package-lock.json", ".github/workflows/packages.yml"]
+  push:
+    branches: [main]
+    paths: ["packages/**", "skills/**", "kudo-agent/.claude/skills/**", "kudo-agent/prompts/**", "kudo-agent/agents/**", "scripts/**", "e2e/**", "package.json", "package-lock.json", ".github/workflows/packages.yml"]
+  workflow_dispatch:
+    inputs:
+      e2e:
+        description: "Also run the signed e2e suites on a local mainnet fork (slow; uses the public RPC)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:addresses
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+  e2e:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci && npm run build
+      - working-directory: e2e
+        run: npm ci && ./run.sh

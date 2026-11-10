@@ -1,0 +1,19 @@
+# A throwaway local npm registry: @kudo-dev/* come from the tarballs this
+# test publishes; everything else is proxied from npmjs.
+storage: ./storage
+auth:
+  htpasswd:
+    file: ./htpasswd
+    max_users: 100
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+packages:
+  "@kudo-dev/*":
+    access: $all
+    publish: $all
+  "**":
+    access: $all
+    publish: $all
+    proxy: npmjs
+log: { type: stdout, format: pretty, level: warn }

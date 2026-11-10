@@ -38,8 +38,12 @@ npm install
 npm run dev
 ```
 
-Point it at **testnet** before mainnet. `.env` ships set to testnet; the
-mainnet block is commented out below it.
+`.env.example` ships set to Robinhood Chain **mainnet** (chain `4663`) and the
+current Kudo contract `0x1930D0FEaB14b024353bF22adE03Db989aD640C7`, the only
+deployment the skills support. USDG there is real money, so start with a
+throwaway wallet holding small amounts, and read what it does before funding it
+further. The older testnet and legacy mainnet contracts are listed there only as
+a commented note; the skills no longer describe them.
 
 | Endpoint | Does |
 |---|---|
@@ -59,7 +63,7 @@ queue: a second request starts a second run.
 
 `src/cron.ts` sends `prompts/settle-due.txt` on an interval. Each round the
 agent lists its covenants and finds the ones whose promise is due, then keeps
-each promise according to what it says: pay the ETH and attest with the
+each promise according to what it says: pay the USDG and attest with the
 transaction hash, or post the tweet and attest with its URL. Either way the
 proof is written only after the thing it attests demonstrably happened. Rounds
 never overlap, and a failed round is logged and skipped rather than stopping
@@ -127,7 +131,9 @@ to the model. They are denied by name in `disallowedTools`, which takes the
 tool list from 23 entries to 3. `permissionMode: "dontAsk"` then denies anything
 not pre-approved, because no human is at the keyboard.
 
-It holds `AGENT_ROLE`, so it can mint and attest its own promises. It does
+It mints only under an ERC-8004 identity its own wallet owns — the contract
+refuses any other `agentId` — and needs `AGENT_ROLE` as well only when mint
+access control is turned on. It can attest its own promises. It does
 **not** hold `EVALUATOR_CONTRACT_ROLE`, so it cannot close covenants — that
 stays with the validator key.
 
@@ -141,7 +147,7 @@ tools or put the key behind a signer that enforces amount and recipient policy.
 
 **Shell output is not schema-validated.** A typed tool would compute a
 repayment amount in code; here the model composes the whole `cast send`. The
-skill file compensates by stating amounts in ETH and keeping one numeral per
+skill file compensates by stating amounts in USDG and keeping one numeral per
 promise, but that is a convention, not an enforcement.
 
 **Settlement rounds cost a model call each.** The loop wakes on a timer and
