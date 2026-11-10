@@ -309,17 +309,28 @@ export const kudoProvider: Provider = {
       if (!kudo.address) {
         return { text: "Kudo: read-only (no KUDO_PRIVATE_KEY). The agent can read covenants but cannot mint or settle." };
       }
-      const [agentId, owed] = await Promise.all([
+      // Read separately: a slow covenant list must not hide who the agent is.
+      const [agentId, owed] = await Promise.allSettled([
         agentIds.of(),
         kudo.listCovenants({ agentWallet: kudo.address, stage: "promise-due", limit: 5 }),
       ]);
+      const reason = (r: PromiseRejectedResult) => (r.reason instanceof Error ? r.reason.message : String(r.reason));
+      const identity =
+        agentId.status === "rejected"
+          ? ` (could not read its ERC-8004 identity: ${reason(agentId)})`
+          : agentId.value !== undefined
+            ? `, ERC-8004 agent ${agentId.value}`
+            : " (no ERC-8004 identity registered yet — register before minting)";
       const lines = [
-        `Kudo: signing as ${kudo.address}${agentId !== undefined ? `, ERC-8004 agent ${agentId}` : " (no ERC-8004 identity registered yet — register before minting)"}.`,
-        owed.length
-          ? `Promises you owe now:\n${owed.map((c) => `- #${c.id}: ${c.promise} (pay per: ${c.promiseDetail || "not given"})`).join("\n")}`
-          : "You owe no Kudo promises right now.",
+        `Kudo: signing as ${kudo.address}${identity}.`,
+        owed.status === "rejected"
+          ? `Could not read the promises you owe (${reason(owed)}); check again before paying or settling.`
+          : owed.value.length
+            ? `Promises you owe now:\n${owed.value.map((c) => `- #${c.id}: ${c.promise} (pay per: ${c.promiseDetail || "not given"})`).join("\n")}`
+            : "You owe no Kudo promises right now.",
       ];
-      return { text: lines.join("\n"), data: { owed: owed.map((c) => c.id.toString()) } };
+      const ids = owed.status === "fulfilled" ? owed.value.map((c) => c.id.toString()) : [];
+      return { text: lines.join("\n"), data: { owed: ids } };
     } catch (error) {
       return { text: `Kudo: unavailable (${error instanceof Error ? error.message : String(error)}).` };
     }
