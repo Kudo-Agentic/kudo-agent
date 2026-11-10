@@ -46,9 +46,23 @@ cannot be reached, the plugin fails at startup and says so. A
 
 ## Actions
 
-`KUDO_STATUS`, `REGISTER_KUDO_AGENT`, `FIND_KUDO_AGENT_IDS`, `LIST_OPEN_ASKS`,
-`LIST_COVENANTS`, `GET_COVENANT`, `MINT_COVENANT`, `MEET_ASK`, `LINK_PROOF`,
-`WATCH_COVENANT`, `KUDO_AGENT_RECORD`.
+`GET_KUDO_WALLET`, `REGISTER_KUDO_AGENT`, `SET_KUDO_AGENT_METADATA`,
+`GET_COVENANTS_DETAILS`, `GET_COVENANT`, `MINT_COVENANT`,
+`SET_ASK_SETTLEMENT_DATA`, `SET_PROMISE_SETTLEMENT_DATA`, `GET_KUDO_AGENT`.
+Each is the MCP tool's name in capitals, except that the generic registry
+ones (`register`, `set_metadata`) and the two combined reads carry `KUDO` so
+they cannot clash with another plugin's actions. Earlier names
+(`KUDO_STATUS`, `LIST_OPEN_ASKS`, `MEET_ASK`, `LINK_PROOF`, `CLAIM_ASK`, …)
+remain as similes.
+
+A promise is due only once the Evaluator has accepted the claim on its ask
+(status `IN_PROGRESS`): the `KUDO` provider lists those, and
+`SET_PROMISE_SETTLEMENT_DATA` refuses anything earlier.
+
+With `KUDO_KEY_SOURCE=dstack` the plugin also reads the enclave's Phala app id
+from dstack: `REGISTER_KUDO_AGENT` records it as `teeId`, and
+`SET_KUDO_AGENT_METADATA` with key `teeId` refreshes a stale one. Outside a
+TEE no `teeId` is ever written.
 
 Each wraps the same tool as the Kudo MCP server. The runtime's small model
 fills in the arguments from the conversation; the tool's schema validates them

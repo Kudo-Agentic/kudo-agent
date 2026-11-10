@@ -20,7 +20,7 @@ const action = (name: string) => kudoPlugin.actions!.find((a) => a.name === name
 describe("kudoPlugin", () => {
   it("exposes the core actions and a provider", () => {
     const names = kudoPlugin.actions!.map((a) => a.name);
-    expect(names).toEqual(expect.arrayContaining(["MINT_COVENANT", "LINK_PROOF", "LIST_OPEN_ASKS", "MEET_ASK", "GET_COVENANT", "REGISTER_KUDO_AGENT"]));
+    expect(names).toEqual(expect.arrayContaining(["MINT_COVENANT", "SET_PROMISE_SETTLEMENT_DATA", "SET_ASK_SETTLEMENT_DATA", "GET_COVENANT", "REGISTER_KUDO_AGENT"]));
     expect(kudoPlugin.providers?.[0]?.name).toBe("KUDO");
   });
 
@@ -41,7 +41,7 @@ describe("kudoPlugin", () => {
   });
 
   it("retries once with the large model when the small model's arguments fail validation", async () => {
-    // As in an e2e run: the small model returned no id or proof for MEET_ASK.
+    // As in an e2e run: the small model returned no id or proof for SET_ASK_SETTLEMENT_DATA.
     const calls: string[] = [];
     const rt = {
       getSetting: (k: string) => ({ KUDO_PRIVATE_KEY: "0x" + "33".repeat(32) })[k as "KUDO_PRIVATE_KEY"] ?? null,
@@ -57,13 +57,28 @@ describe("kudoPlugin", () => {
     expect(callback.mock.calls[0]?.[0].text).toMatch(/LOAN|INVOICE|ADVANCE/);
   });
 
-  it("names Eliza actions, not MCP tools, in the status hint", async () => {
+  it("names Eliza actions, not MCP tools, in error hints", async () => {
     const callback = vi.fn(async (_c: { text?: string }) => []);
-    const rt = runtime({});
-    const tool = action("KUDO_STATUS");
-    const r = await tool.handler(rt, message("status"), undefined, undefined, callback);
-    expect(r).toMatchObject({ success: true });
-    expect(callback.mock.calls[0]?.[0].text).not.toMatch(/register_agent|mint_covenant|list_open_asks/);
+    // No agentId anywhere: the tool's error says to call get_wallet or register.
+    const rt = runtime({ KUDO_PRIVATE_KEY: "0x" + "11".repeat(32) }, '{"type":"LOAN","ask":"Lend me 5 USDG for gas.","promise":"I will repay 5.1 USDG within one day."}');
+    await action("MINT_COVENANT").handler(rt, message("mint a loan"), undefined, undefined, callback);
+    const text = callback.mock.calls[0]?.[0].text ?? "";
+    expect(text).toMatch(/GET_KUDO_WALLET/);
+    expect(text).not.toMatch(/get_wallet|register/);
+  });
+
+  it("exposes exactly the nine Kudo actions", () => {
+    expect(kudoPlugin.actions!.map((a) => a.name)).toEqual([
+      "GET_KUDO_WALLET",
+      "REGISTER_KUDO_AGENT",
+      "SET_KUDO_AGENT_METADATA",
+      "GET_COVENANTS_DETAILS",
+      "GET_COVENANT",
+      "MINT_COVENANT",
+      "SET_ASK_SETTLEMENT_DATA",
+      "SET_PROMISE_SETTLEMENT_DATA",
+      "GET_KUDO_AGENT",
+    ]);
   });
 
   it("shows earlier action results from the same turn to the next action", async () => {
@@ -76,7 +91,7 @@ describe("kudoPlugin", () => {
       }),
     } as unknown as IAgentRuntime;
     const previousResults = [{ success: true, data: { result: { id: "115", promiseDetail: "pay: 0x09977Cb96F040522E33d69656b087f910dC3385c" } } }];
-    await action("LINK_PROOF").handler(rt, message("link the payment for what you owe"), undefined, { actionContext: { previousResults } }, vi.fn(async () => []));
+    await action("SET_PROMISE_SETTLEMENT_DATA").handler(rt, message("link the payment for what you owe"), undefined, { actionContext: { previousResults } }, vi.fn(async () => []));
     expect(prompt).toContain("pay: 0x09977Cb96F040522E33d69656b087f910dC3385c");
   });
 
@@ -112,6 +127,7 @@ describe("KUDO_KEY_SOURCE", () => {
           asked = JSON.parse(body);
           return res.end(JSON.stringify({ key: DSTACK_KEY.slice(2), signature_chain: [] }));
         }
+        if (req.url === "/Info") return res.end(JSON.stringify({ app_id: "0xF4D96bf40bd123e04de1ad947d16bc9ad137c97a" }));
         res.statusCode = 404;
         res.end();
       });
@@ -127,10 +143,15 @@ describe("KUDO_KEY_SOURCE", () => {
   });
 
   it("uses the dstack key when set to dstack, ignoring KUDO_PRIVATE_KEY", async () => {
-    const { kudo, keySource } = await getKudo(runtime({ KUDO_KEY_SOURCE: "dstack", KUDO_DSTACK_SOCKET: socket, KUDO_PRIVATE_KEY: ENV_KEY }));
+    const { kudo, keySource, teeId } = await getKudo(runtime({ KUDO_KEY_SOURCE: "dstack", KUDO_DSTACK_SOCKET: socket, KUDO_PRIVATE_KEY: ENV_KEY }));
     expect(keySource).toBe("dstack");
     expect(kudo.address).toBe(privateKeyToAccount(DSTACK_KEY as `0x${string}`).address);
     expect(asked.path).toBe("kudo/agent");
+    expect(teeId).toBe("f4d96bf40bd123e04de1ad947d16bc9ad137c97a");
+  });
+
+  it("has no teeId when the key comes from KUDO_PRIVATE_KEY", async () => {
+    expect((await getKudo(runtime({ KUDO_PRIVATE_KEY: ENV_KEY }))).teeId).toBeUndefined();
   });
 
   it("derives from a custom path", async () => {

@@ -3,12 +3,12 @@ import { KudoError } from "@kudo-dev/sdk";
 
 import { covenantId, define, fromField, toJson, type ToolContext } from "./shared.js";
 
-export const linkProof = ({ kudo, signing, unsigned }: ToolContext) =>
+export const setPromiseSettlementData = ({ kudo, signing, unsigned }: ToolContext) =>
   define({
-    name: "link_proof",
-    title: "Link promise proof",
+    name: "set_promise_settlement_data",
+    title: "Prove a promise kept",
     description:
-      "Records proof that you kept your promise on a covenant you minted: the tx hash of the payment you sent from your own wallet, or the URL of the delivered work. Only the covenant's minter can, only once its ask is met, and only once. Never link proof of something that did not happen.",
+      "Kudo setPromiseSettlementData: records proof that you kept your promise on a covenant you minted: the tx hash of the payment you sent from your own wallet, or the URL of the delivered work. Only the covenant's minter can, only once the Evaluator has accepted the claim on its ask (status IN_PROGRESS) — a claim alone owes nothing, so never pay before then — and only once. Never link proof of something that did not happen.",
     inputShape: {
       id: covenantId,
       proof: z.string().min(3).describe("Tx hash or URL proving the promise was kept"),

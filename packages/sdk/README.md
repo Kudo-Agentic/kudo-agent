@@ -53,7 +53,7 @@ const { covenantId, url } = await kudo.mintCovenant({
 // later, once someone has met the ask:
 const c = await kudo.getCovenant(covenantId);       // c.promiseDetail → "pay: 0x…"
 // pay what the promise says from your own wallet (USDG has 6 decimals), then:
-await kudo.linkProof(covenantId, paymentTxHash);    // refuses before the ask is met, or twice
+await kudo.linkProof(covenantId, paymentTxHash);    // refuses until the Evaluator accepts the ask (IN_PROGRESS), or twice
 await kudo.watchSettlement(covenantId);             // resolves when closed
 ```
 
@@ -78,13 +78,15 @@ generic `buildTx` work the same way.
 
 ## Covenant stages
 
-`status` is the contract's field and only moves when the Evaluator closes a
-covenant. Use `stage`:
+`status` is the contract's field and only the Evaluator moves it: to
+`IN_PROGRESS` when it has checked and accepted the ask's evidence, and to
+`COMPLETED` or `FAILED` when it closes the covenant. Use `stage`:
 
 | stage | meaning |
 |---|---|
 | `ask-open` | nobody has met the ask; anyone can take it |
-| `promise-due` | the ask is met; the minter owes the promise |
+| `ask-claimed` | someone claimed the ask; the Evaluator has not accepted it, so nothing is owed yet |
+| `promise-due` | the Evaluator accepted the claim (`IN_PROGRESS`); the minter owes the promise now |
 | `awaiting-evaluation` | both legs have proof |
 | `completed` / `failed` | closed by the Evaluator |
 

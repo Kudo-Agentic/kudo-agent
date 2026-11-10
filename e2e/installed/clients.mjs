@@ -24,9 +24,9 @@ async function start(label, server) {
   try {
     await client.connect(transport);
     const tools = (await client.listTools()).tools.map((t) => t.name);
-    const hc = JSON.parse((await client.callTool({ name: "how_to_connect", arguments: {} })).content[0].text);
+    const hc = JSON.parse((await client.callTool({ name: "get_wallet", arguments: {} })).content[0].text);
     ok(tools.includes("mint_covenant") && !tools.some((n) => /pay|transfer/.test(n)), `${label}: started with ${tools.length} tools, none moves tokens`);
-    ok(hc.signing.includes("signs as") && hc.network.chainId === 4663, `${label}: signing with the configured key on chain ${hc.network.chainId}`);
+    ok(hc.signing === true && /^0x[0-9a-fA-F]{40}$/.test(hc.wallet), `${label}: signing with the configured key as ${hc.wallet}`);
   } catch (e) {
     ok(false, `${label}: ${e.message} ${stderr.slice(0, 300)}`);
   } finally {

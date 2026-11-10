@@ -63,7 +63,7 @@ describe("assertPromiseDue", () => {
     id: 1n,
     agentWallet: "0x09977Cb96F040522E33d69656b087f910dC3385c",
     agentId: 1n,
-    status: "MINTED",
+    status: "IN_PROGRESS",
     stage: "promise-due",
     type: "INVOICE",
     ask: "a",
@@ -74,14 +74,20 @@ describe("assertPromiseDue", () => {
     promiseProof: "",
   } as Covenant;
 
-  it("passes when the ask is met and no promise proof is linked", () => {
+  it("passes when the Evaluator accepted the ask and no promise proof is linked", () => {
     expect(() => kudo.assertPromiseDue(base)).not.toThrow();
   });
   it("refuses before the ask is met", () => {
-    expect(() => kudo.assertPromiseDue({ ...base, stage: "ask-open", askSettledAt: null, askProof: "" })).toThrow(/not been met/);
+    expect(() => kudo.assertPromiseDue({ ...base, status: "MINTED", stage: "ask-open", askSettledAt: null, askProof: "" })).toThrow(/not been met/);
+  });
+  it("refuses a claim the Evaluator has not accepted yet, so nobody pays on a bare claim", () => {
+    expect(() => kudo.assertPromiseDue({ ...base, status: "MINTED", stage: "ask-claimed" })).toThrow(/not accepted it yet/);
   });
   it("refuses a second proof, so nobody pays twice", () => {
     expect(() => kudo.assertPromiseDue({ ...base, stage: "awaiting-evaluation", promiseProof: "0xdead" })).toThrow(/already has promise proof/);
+  });
+  it("passes when the Evaluator marked it IN_PROGRESS, even with no claim on record", () => {
+    expect(() => kudo.assertPromiseDue({ ...base, status: "IN_PROGRESS", askSettledAt: null, askProof: "" })).not.toThrow();
   });
   it("refuses a closed covenant", () => {
     expect(() => kudo.assertPromiseDue({ ...base, stage: "completed", status: "COMPLETED" })).toThrow(/already closed/);

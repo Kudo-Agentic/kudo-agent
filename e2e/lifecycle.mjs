@@ -4,6 +4,7 @@
 import { createWalletClient, http, erc20Abi, parseUnits, formatUnits } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createKudo, robinhood } from "@kudo-dev/sdk";
+import { acceptAsk } from "./validator.mjs";
 
 const RPC = "http://127.0.0.1:8545";
 const CARTE = "0xFB9A9eB13B4Cf30963DCC0A0cbc5598Cc03B2cf3";
@@ -38,8 +39,13 @@ console.log("meet ask");
 await expectErr(A.kudo.meetAsk(covenantId, { proof: "https://x" }), "INVALID_INPUT", "A cannot meet own ask");
 await B.kudo.meetAsk(covenantId, { proof: "https://ipfs.io/ipfs/bafyforktest", promiseDetail: `pay: ${B.account.address}` });
 c = await A.kudo.getCovenant(covenantId);
-ok(c.stage === "promise-due" && c.askProof.includes("bafyforktest") && c.promiseDetail.includes(B.account.address), "B met the ask; promise-due with B's pay address");
+ok(c.stage === "ask-claimed" && c.askProof.includes("bafyforktest") && c.promiseDetail.includes(B.account.address), "B met the ask; ask-claimed with B's pay address");
 await expectErr(B.kudo.meetAsk(covenantId, { proof: "https://y" }), "ALREADY_MET", "second meet refused");
+
+console.log("the validator accepts the claim");
+await expectErr(A.kudo.linkProof(covenantId, "0xtooearly"), "ASK_NOT_MET", "a bare claim owes nothing: proof refused until the validator accepts it");
+await acceptAsk(RPC, covenantId);
+ok((await A.kudo.getCovenant(covenantId)).stage === "promise-due", "status 1: promise-due");
 
 console.log("pay + prove");
 // fund A with 10 USDG from an unlocked mainnet holder

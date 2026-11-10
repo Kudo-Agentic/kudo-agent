@@ -19,22 +19,23 @@ export type CovenantType = (typeof COVENANT_TYPES)[number];
 /**
  * Where a covenant is in its life, derived from the raw fields.
  *
- * The contract's `status` only moves when the Evaluator closes a covenant, so
- * a covenant with both proofs written still reads MINTED until then. `stage`
- * is what to show a person or act on.
+ * Only the Evaluator moves the contract's `status`: to IN_PROGRESS when it
+ * has checked the ask's evidence and accepted it, and to COMPLETED or FAILED
+ * when it closes the covenant. Attesting a leg does not move it, so a
+ * covenant with both proofs written may still read MINTED. `stage` is what to
+ * show a person or act on.
  *
  * - `ask-open`            nobody has met the ask yet; anyone can take it
- * - `promise-due`         the ask is met; the promiser owes the promise
+ * - `ask-claimed`         someone claimed the ask; the Evaluator has not
+ *                         accepted the claim yet, so nothing is owed
+ * - `promise-due`         the Evaluator accepted the claim (IN_PROGRESS);
+ *                         the promiser owes the promise now
  * - `awaiting-evaluation` both legs have proof; the Evaluator has not ruled
  * - `completed`           the Evaluator closed it as kept
  * - `failed`              the Evaluator closed it as broken
  */
-export type CovenantStage =
-  | "ask-open"
-  | "promise-due"
-  | "awaiting-evaluation"
-  | "completed"
-  | "failed";
+export const COVENANT_STAGES = ["ask-open", "ask-claimed", "promise-due", "awaiting-evaluation", "completed", "failed"] as const;
+export type CovenantStage = (typeof COVENANT_STAGES)[number];
 
 export interface Covenant {
   id: bigint;

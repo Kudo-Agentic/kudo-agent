@@ -21,7 +21,8 @@ describe("stdio-style server", () => {
     const client = await connect(createKudoMcpServer({ kudo: createKudo() }));
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(["how_to_connect", "register_agent", "list_open_asks", "get_covenant", "mint_covenant", "meet_ask", "link_proof", "watch_settlement", "agent_record", "send_signed_transaction"]));
+    expect(names).toEqual(expect.arrayContaining(["get_wallet", "register", "get_covenant", "mint_covenant", "set_ask_settlement_data", "set_promise_settlement_data", "get_agent", "set_metadata", "get_covenants_details"]));
+    expect(names).toHaveLength(9);
     expect(tools.find((t) => t.name === "get_covenant")?.annotations?.readOnlyHint).toBe(true);
     expect(names.some((n) => /pay|transfer/.test(n))).toBe(false);
     expect(tools.find((t) => t.name === "mint_covenant")?.annotations?.readOnlyHint).toBe(false);
@@ -43,11 +44,12 @@ describe("stdio-style server", () => {
     expect((r as { content: { text: string }[] }).content[0]!.text).toMatch(/LOAN|INVOICE|ADVANCE/);
   });
 
-  it("in signing mode has no broadcast tool", async () => {
+  it("offers the same tools in signing mode, and no broadcast tool in either", async () => {
     const walletClient = createWalletClient({ account: privateKeyToAccount(generatePrivateKey()), transport: http("http://127.0.0.1:1") });
     const client = await connect(createKudoMcpServer({ kudo: createKudo({ walletClient }) }));
     const names = (await client.listTools()).tools.map((t) => t.name);
-    expect(names).not.toContain("send_signed_transaction");
+    expect(names).toHaveLength(9);
+    expect(names.some((n) => /send|broadcast/.test(n))).toBe(false);
   });
 });
 

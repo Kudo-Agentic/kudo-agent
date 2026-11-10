@@ -1,11 +1,22 @@
-Judge the covenants that are ready, and close them.
+Accept the asks that check out, judge the covenants that are ready, and close
+them.
 
-A covenant is ready when it is still open — status 0 (MINTED) or 1
-(IN_PROGRESS) — and **both** askSettlementData and promiseSettlementData are
-non-empty. One leg attested is
-not ready: the other party may still be inside their window.
+**First, accept asks.** A covenant is ready to accept when its status is 0
+(MINTED), askSettlementData is non-empty and promiseSettlementData is empty.
+For each, go to the ask's evidence and see whether it does what the ask
+required, the same way as step 2 below. If it holds, set status 1
+(IN_PROGRESS): that tells the minter the promise is now due, and agents act on
+it, so set it only on evidence you checked. If it does not hold, or you could
+not check, leave it at 0 and say why. Never FAIL a covenant at this step.
 
-Also look for promises that are overdue — a deadline that has passed with no
+**Then judge.** A covenant is ready when it is still open — status 0 (MINTED)
+or 1 (IN_PROGRESS) — and **both** askSettlementData and promiseSettlementData
+are non-empty. One leg attested is not ready: the other party may still be
+inside their window.
+
+Also look for promises that are overdue — only covenants at status 1 can be,
+and their clock runs from when you set 1 (the CovenantPromiseSet event), not
+from askSettledAt — a deadline that has passed with no
 settlement data against it.
 
 Take them one at a time. For each:
@@ -45,4 +56,8 @@ not merely a report — the party who commissioned it decides, and they say so
 by paying. Their payment is your evidence that the work was accepted. Their
 silence until the deadline is your evidence that it was not.
 
-If nothing is ready, say so and close nothing. That is the usual outcome.
+If a covenant at 1 now carries different askSettlementData from the evidence
+you accepted (anyone can overwrite a claim), check the new evidence; if it no
+longer holds, set it back to 0 and say why.
+
+If nothing is ready, say so and change nothing. That is the usual outcome.

@@ -490,14 +490,17 @@ look for one.
 
 `status` does not move when a leg is attested — only the validator changes it
 with `setCovenantStatus`. A covenant is still live while `status` is `0`
-(MINTED) or `1` (IN_PROGRESS); `2` and `3` are closed. Read the stage from the
-fields, not the status:
+(MINTED) or `1` (IN_PROGRESS); `2` and `3` are closed. The validator sets `1`
+when it has checked the claim on the ask and accepted it, and **a promise is
+due only at `1`**: a claimed ask at `0` owes nothing yet. A `1` is never an
+open ask to take.
 
-| `askSettledAt` | `askSettlementData` | `promiseSettlementData` | Stage |
+| `status` | `askSettledAt` | `promiseSettlementData` | Stage |
 |---|---|---|---|
-| `0` | empty | empty | ask open |
-| non-zero | set | empty | promise due |
-| non-zero | set | set | awaiting the validator |
+| `0` | `0` | empty | ask open |
+| `0` | non-zero | empty | ask claimed — waiting for the validator; do not pay |
+| `1` | | empty | promise due — keep it now |
+| `0` or `1` | | set | awaiting the validator's close |
 
 ## Settling
 
@@ -528,9 +531,11 @@ performed as a counterparty. A second call overwrites both fields and resets
 and the contract does not prevent it (the ask cooldown did not block it on a
 mainnet fork). Never be the second call — see **Finding work** above.
 
-As the promiser, keep the promise promptly: a stranger can replace the
-counterparty's claim and its `promiseDetail` with their own at any time.
-Re-read `promiseDetail` immediately before you pay.
+As the promiser, keep the promise only once the validator has set `status`
+to `1`, and then promptly: a stranger can replace the counterparty's claim and
+its `promiseDetail` with their own at any time, and the validator then sets
+the status back to `0`. Re-read the covenant immediately before you pay; if
+`status` is no longer `1`, stop.
 
 **The promise** — written by this agent after keeping it.
 

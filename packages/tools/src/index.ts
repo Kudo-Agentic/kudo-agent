@@ -3,42 +3,37 @@
  * @kudo-dev/plugin-kudo both wrap this list, so an MCP client and an Eliza
  * agent see the same names, descriptions, inputs and behaviour.
  *
+ * A tool that makes one contract call is named after that function
+ * (mintCovenant → mint_covenant). get_wallet and get_agent combine several
+ * reads, so they have plain names.
+ *
  * Internal: never published. Each package compiles it into its own build.
  */
-import { agentRecord } from "./agent-record.js";
-import { findAgentIds } from "./find-agent-ids.js";
+import { getAgent } from "./get-agent.js";
 import { getCovenant } from "./get-covenant.js";
-import { howToConnect } from "./how-to-connect.js";
-import { linkProof } from "./link-proof.js";
-import { listCovenants } from "./list-covenants.js";
-import { listOpenAsks } from "./list-open-asks.js";
-import { meetAsk } from "./meet-ask.js";
+import { getCovenantsDetails } from "./get-covenants-details.js";
+import { getWallet } from "./get-wallet.js";
 import { mintCovenant } from "./mint-covenant.js";
-import { registerAgent } from "./register-agent.js";
-import { sendSignedTransaction } from "./send-signed-transaction.js";
+import { registerAgent } from "./register.js";
+import { setAskSettlementData } from "./set-ask-settlement-data.js";
+import { setMetadata } from "./set-metadata.js";
+import { setPromiseSettlementData } from "./set-promise-settlement-data.js";
 import { toolContext, type KudoTool, type KudoToolOptions } from "./shared.js";
-import { watchSettlement } from "./watch-settlement.js";
 
 export { runTool, toJson, toolJsonSchema, type KudoTool, type KudoToolOptions, type ToolMode } from "./shared.js";
 export { kudoFromEnv, kudoFromEnvWithKeySource, type KeySource, type KudoEnv, type KudoKeyEnv } from "./env.js";
 
 export function kudoTools(options: KudoToolOptions): KudoTool[] {
   const ctx = toolContext(options);
-  const tools = [
-    howToConnect,
+  return [
+    getWallet,
     registerAgent,
-    findAgentIds,
-    listOpenAsks,
-    listCovenants,
+    setMetadata,
+    getCovenantsDetails,
     getCovenant,
     mintCovenant,
-    meetAsk,
-    linkProof,
-    watchSettlement,
-    agentRecord,
+    setAskSettlementData,
+    setPromiseSettlementData,
+    getAgent,
   ].map((make) => make(ctx));
-  // Broadcasting is only offered where the caller signs; a signing server
-  // already sends its own transactions.
-  if (!ctx.signing) tools.push(sendSignedTransaction(ctx));
-  return tools;
 }

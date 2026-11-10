@@ -21,6 +21,8 @@ ok() { if [ "$1" = "1" ]; then PASS=$((PASS+1)); echo "  ✓ $2"; else FAIL=$((F
 rpc() { curl -s $RPC -H 'content-type: application/json' -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$1\",\"params\":$2}"; }
 snippet() { node --no-warnings -e 'import(process.env.CONNECT_SNIPPETS).then(m=>process.stdout.write(m.CONNECT_OPTIONS.flatMap(o=>o.snippets).find(s=>s.id===process.argv[1]).code))' "$1"; }
 cleanup() { kill ${REG_PID:-} 2>/dev/null; }
+# GNU timeout where present (gtimeout from Homebrew coreutils), else perl alarm: macOS ships neither.
+run_for() { local s=$1; shift; if command -v timeout >/dev/null; then timeout "$s" "$@"; elif command -v gtimeout >/dev/null; then gtimeout "$s" "$@"; else perl -e 'alarm shift; exec @ARGV' "$s" "$@"; fi; }
 trap cleanup EXIT
 
 if [ -z "${REGISTRY:-}" ]; then
@@ -61,9 +63,9 @@ CC=$WORK/claude-code; mkdir -p "$CC/home" "$CC/project"
 CMD=$(snippet mcp-claude-code | fill | sed "s|claude mcp add kudo |claude mcp add kudo -e KUDO_RPC_URL=$RPC |")
 echo "    \$ $(echo "$CMD" | sed "s/$KEY/0x<test key>/")"
 ( cd "$CC/project" && HOME=$CC/home bash -c "$CMD" ) >/dev/null 2>&1; ok "$([ $? = 0 ] && echo 1)" "claude mcp add succeeded"
-LIST=$(cd "$CC/project" && HOME=$CC/home timeout 180 claude mcp list 2>&1)
+LIST=$(cd "$CC/project" && HOME=$CC/home run_for 180 claude mcp list 2>&1)
 ok "$(echo "$LIST" | grep -q "kudo.*Connected" && echo 1)" "claude mcp list: $(echo "$LIST" | grep kudo | sed "s/$KEY/0x<key>/" | cut -c1-110)"
-OUT=$(cd "$CC/project" && HOME=$CC/home timeout 900 claude -p --model sonnet --allowedTools=mcp__kudo -- "Use the Kudo MCP tools. Mint an INVOICE covenant under my agent $AGENT_ID: the counterparty writes a 200-word ERC-8004 note on IPFS; I pay 2 USDG within one hour of the link going up. Don't ask me to confirm, just mint it and give me the covenant id." 2>&1)
+OUT=$(cd "$CC/project" && HOME=$CC/home run_for 900 claude -p --model sonnet --allowedTools=mcp__kudo -- "Use the Kudo MCP tools. Mint an INVOICE covenant under my agent $AGENT_ID: the counterparty writes a 200-word ERC-8004 note on IPFS; I pay 2 USDG within one hour of the link going up. Don't ask me to confirm, just mint it and give me the covenant id." 2>&1)
 N=$(cd "$ROOT" && node --input-type=module -e 'import { createKudo } from "@kudo-dev/sdk"; const l = await createKudo({ rpcUrl: process.argv[2] }).listCovenants({ agentWallet: process.argv[1] }); console.log(l.length + " " + (l[0]?.promise ?? ""))' $ME $RPC)
 echo "$OUT" | tail -4 | sed 's/^/    Claude: /'
 ok "$(echo "$N" | grep -q '^1 .*2 USDG' && echo 1)" "Claude Code minted through the installed server (chain: $N)"
@@ -87,7 +89,7 @@ INSTALL=$(snippet eliza-install)
 echo "    \$ $INSTALL"
 ( cd "$EL" && HOME=$EL/home bash -c "$INSTALL" >/dev/null 2>&1 ); ok "$([ $? = 0 ] && [ -d "$EL/node_modules/@kudo-dev/plugin-kudo/dist" ] && echo 1)" "bun add @kudo-dev/plugin-kudo installed the tarball"
 ( cd "$EL" && HOME=$EL/home bun add @elizaos/core@1.7.2 @elizaos/plugin-bootstrap@1.7.2 @elizaos/plugin-sql@1.7.2 @kudo-dev/sdk viem >/dev/null 2>&1 )
-OUT=$(cd "$EL" && HOME=$EL/home PGLITE_DATA_DIR=$EL/.db timeout 1800 bun eliza.ts $KEY $RPC 2>&1 | grep -E "^  (✓|✗) "); echo "$OUT"
+OUT=$(cd "$EL" && HOME=$EL/home PGLITE_DATA_DIR=$EL/.db run_for 1800 bun eliza.ts $KEY $RPC 2>&1 | grep -E "^  (✓|✗) "); echo "$OUT"
 # Every expected check must be there: a crash or a dead fork prints fewer lines.
 ok "$([ "$(echo "$OUT" | grep -c "^  ✓ ")" = 3 ] && ! echo "$OUT" | grep -q "✗" && echo 1)" "the character from the page runs the installed plugin (3/3 checks printed and passed)"
 
