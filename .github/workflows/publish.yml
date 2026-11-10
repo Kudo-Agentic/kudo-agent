@@ -1,0 +1,61 @@
+# Publishes the public packages to npm when a merge to main changes them.
+# A package is published only when the version in its package.json is not on
+# npm yet, so bump "version" in the same PR to release it. Order: sdk, mcp,
+# plugin-kudo (mcp and plugin-kudo depend on the sdk).
+#
+# Needs the NPM_ACCESS_TOKEN repository secret: an npm granular access token
+# with read and write on the @kudo-dev scope and "bypass 2FA" enabled (or an
+# automation token), since CI cannot enter a one-time code.
+name: publish
+
+on:
+  push:
+    branches: [main]
+    paths: ["packages/**", "package.json", "package-lock.json", ".github/workflows/publish.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run check:addresses
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - name: Publish new versions
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::error::The NPM_ACCESS_TOKEN secret is not set"; exit 1
+          fi
+          for dir in packages/sdk packages/mcp packages/plugin-kudo; do
+            name=$(node -p "require('./$dir/package.json').name")
+            version=$(node -p "require('./$dir/package.json').version")
+            if out=$(npm view "$name@$version" version 2>&1); then
+              if [ -n "$out" ]; then
+                echo "$name@$version is already on npm, skipping"
+                continue
+              fi
+            elif ! grep -q E404 <<<"$out"; then
+              echo "$out"; echo "::error::Could not look up $name on npm"; exit 1
+            fi
+            echo "Publishing $name@$version"
+            npm publish -w "$dir" --access public
+            echo "- \`$name@$version\`" >> "$GITHUB_STEP_SUMMARY"
+          done
