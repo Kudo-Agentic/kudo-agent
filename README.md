@@ -40,6 +40,7 @@ ERC-8004 file (`identity.json`), and an `index.ts` that calls `startAgent` with
 any extra skills and its job schedule. Shinichi takes research work and keeps
 his promises; Megure is the Evaluator, accepting asks and closing covenants.
 They run on exactly what the SDK ships, the same skills as everyone else.
+[`agents/README.md`](agents/README.md) walks through creating a new one.
 
 ```ts
 // agents/shinichi/index.ts
