@@ -66,6 +66,8 @@ export interface ToolContext {
  */
 export class AgentIds {
   private readonly known = new Map<string, bigint>();
+  /** Lookups in flight, so callers asking at once share one walk of the logs. */
+  private readonly pending = new Map<string, Promise<bigint | undefined>>();
 
   constructor(private readonly kudo: Kudo) {}
 
@@ -75,10 +77,16 @@ export class AgentIds {
     if (!who) return undefined;
     const cached = this.known.get(who);
     if (cached !== undefined) return cached;
+    let lookup = this.pending.get(who);
+    if (!lookup) {
+      lookup = this.kudo.findRegisteredAgentId(who as Address).finally(() => this.pending.delete(who));
+      this.pending.set(who, lookup);
+    }
+    const found = await lookup;
     // Not cached when absent: a registration made elsewhere is found next time.
-    const found = await this.kudo.findRegisteredAgentId(who as Address);
-    if (found !== undefined) this.known.set(who, found);
-    return found;
+    // An id `register` remembered meanwhile is newer, so it wins.
+    if (found !== undefined && !this.known.has(who)) this.known.set(who, found);
+    return this.known.get(who) ?? found;
   }
 
   /** Records the id a wallet just registered. */
@@ -116,12 +124,22 @@ export function toolContext(options: KudoToolOptions): ToolContext {
         }
         throw new KudoError("INVALID_INPUT", `agentId must be a non-negative integer, got "${value}".`);
       }
-      const wallet = kudo.address ?? from;
+      // Signing acts as the client's wallet; unsigned builds the transaction for `from`.
+      const wallet = mode === "sign" ? kudo.address : (from ?? kudo.address);
       if (!wallet) {
         throw new KudoError("INVALID_INPUT", "agentId is required: this server does not sign, so pass agentId or your wallet as from.");
       }
       const id = await agentIds.of(wallet);
       if (id !== undefined) return id;
+      // An id sent to the wallet has no Registered event naming it. Never send
+      // such a wallet to register: that would give it a second identity.
+      const owned = await kudo.findAgentIds(wallet as Address);
+      if (owned.length) {
+        throw new KudoError(
+          "INVALID_INPUT",
+          `${wallet} owns agent ${owned.join(", ")} but did not register it itself: pass it as agentId.`,
+        );
+      }
       throw new KudoError("INVALID_INPUT", `${wallet} has not registered an agent identity yet. Call register first.`);
     },
   };

@@ -89,7 +89,7 @@ describe("tool list", () => {
 describe("agent id", () => {
   const me = "0x8AF5d198744Ba668689ea90946796a088e00DA33";
   /** A Kudo stand-in: `registered` maps a wallet to the id it registered. */
-  const fake = (registered: Record<string, bigint>, address?: string) => {
+  const fake = (registered: Record<string, bigint>, address?: string, owned: Record<string, bigint[]> = {}) => {
     const lookups: string[] = [];
     const base = createKudo();
     const k = Object.create(base) as typeof base;
@@ -98,8 +98,30 @@ describe("agent id", () => {
       lookups.push(wallet!.toLowerCase());
       return registered[wallet!.toLowerCase()];
     };
+    k.findAgentIds = async (wallet) => owned[wallet!.toLowerCase()] ?? [];
     return { k, lookups };
   };
+
+  it("shares one lookup between callers asking at once", async () => {
+    const { k, lookups } = fake({ [me.toLowerCase()]: 4n }, me);
+    const ids = new AgentIds(k);
+    expect(await Promise.all([ids.of(), ids.of(me), ids.of()])).toEqual([4n, 4n, 4n]);
+    expect(lookups).toHaveLength(1);
+  });
+
+  it("acts as `from` in unsigned mode even when the client has a wallet", async () => {
+    const caller = "0x4902Dbca318a6d5B09f2383003C79aC41ED62CEd";
+    const { k } = fake({ [me.toLowerCase()]: 1n, [caller.toLowerCase()]: 2n }, me);
+    const { agentIdOf } = toolContext({ kudo: k, mode: "unsigned" });
+    expect(await agentIdOf(undefined, caller)).toBe(2n);
+    expect(await agentIdOf(undefined)).toBe(1n);
+  });
+
+  it("never tells a wallet that owns a transferred id to register", async () => {
+    const { k } = fake({}, me, { [me.toLowerCase()]: [42n] });
+    const { agentIdOf } = toolContext({ kudo: k, mode: "unsigned" });
+    await expect(agentIdOf(undefined)).rejects.toThrow(/owns agent 42 but did not register it itself: pass it as agentId/);
+  });
 
   it("is found from the wallet's own registration, once, and an explicit id wins", async () => {
     const { k, lookups } = fake({ [me.toLowerCase()]: 23347n }, me);

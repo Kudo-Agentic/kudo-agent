@@ -353,7 +353,7 @@ export const kudoPlugin: Plugin = {
   init: async (_config, runtime) => {
     const { kudo, agentIds, keySource } = await getKudo(runtime);
     // Found, not configured: the identity this wallet registered, if any.
-    const agentId = kudo.address ? await agentIds.of().catch(() => undefined) : undefined;
+    const agentId = await agentIds.of().catch(() => undefined);
     logger.info(
       `[kudo] ${kudo.network.chain.name}: ${kudo.address ? `signing as ${kudo.address} (key from ${keySource === "dstack" ? "the TEE via dstack" : "KUDO_PRIVATE_KEY"})` : "read-only"}${agentId !== undefined ? `, agent ${agentId}` : ""}`,
     );
