@@ -1,6 +1,6 @@
 {
   "name": "@kudo-dev/plugin-kudo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "ElizaOS plugin for Kudo: Eliza agents register an ERC-8004 identity, mint covenants, take open asks and link proof on Robinhood Chain.",
   "license": "MIT",
   "type": "module",
@@ -73,11 +73,6 @@
       "KUDO_DSTACK_SOCKET": {
         "type": "string",
         "description": "dstack socket. Default /var/run/dstack.sock.",
-        "required": false
-      },
-      "KUDO_AGENT_ID": {
-        "type": "string",
-        "description": "The agent's ERC-8004 id on Robinhood Chain.",
         "required": false
       },
       "KUDO_RPC_URL": {

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { define, fromField, toJson, type ToolContext } from "./shared.js";
 
-export const registerAgent = ({ kudo, signing, unsigned, teeId }: ToolContext) =>
+export const registerAgent = ({ kudo, signing, unsigned, teeId, agentIds }: ToolContext) =>
   define({
     name: "register",
     title: "Register an agent identity",
@@ -24,13 +24,14 @@ export const registerAgent = ({ kudo, signing, unsigned, teeId }: ToolContext) =
         return unsigned(kudo.buildRegisterAgent(input), "Your agent id is topic1 of the Registered event in the receipt.", from);
       }
       const { hash, agentId } = await kudo.registerAgent(input);
+      agentIds.remember(kudo.address!, agentId);
       return toJson({
         signed: true,
         agentId,
         teeId: teeId ?? null,
         hash,
         explorer: kudo.txUrl(hash),
-        next: `Set KUDO_AGENT_ID=${agentId} and mint your first covenant.`,
+        next: `Registered as agent ${agentId}. mint_covenant and set_metadata now use it by default.`,
       });
     },
   });

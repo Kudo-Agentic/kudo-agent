@@ -19,8 +19,12 @@ export interface KudoToolOptions {
   kudo: Kudo;
   /** Defaults to "sign" when the client has a wallet, else "unsigned". */
   mode?: ToolMode;
-  /** The agent id write tools default to, e.g. from KUDO_AGENT_ID. */
-  defaultAgentId?: bigint;
+  /**
+   * Finds the agent id write tools act as when none is passed. Share one
+   * between kudoTools and anything else that needs the id (the ElizaOS
+   * provider), so a registration is seen by both. Default: a new AgentIds.
+   */
+  agentIds?: AgentIds;
   /**
    * The Phala app id of the TEE this agent runs in, read from dstack. Only a
    * process inside that enclave may pass it: it is what register and
@@ -48,13 +52,45 @@ export interface ToolContext {
   teeId?: string;
   /** The unsigned-mode answer for a write: the transaction plus what to do next. */
   unsigned: (tx: TxRequest, next: string, from?: string) => Promise<unknown>;
-  /** The agent id to act as: the input's, else the configured default. */
-  agentIdOf: (value: string | number | undefined) => bigint;
+  /** The agent id to act as: the input's, else the one the wallet registered. */
+  agentIdOf: (value: string | number | undefined, from?: string) => Promise<bigint>;
+  /** Finds and remembers each wallet's id. */
+  agentIds: AgentIds;
+}
+
+/**
+ * Each wallet's ERC-8004 id, found rather than configured: the identity the
+ * wallet registered, from the registry's `Registered` events
+ * (`Kudo.findRegisteredAgentId`). Looked up on first use and kept; `register`
+ * records the id it creates.
+ */
+export class AgentIds {
+  private readonly known = new Map<string, bigint>();
+
+  constructor(private readonly kudo: Kudo) {}
+
+  /** The id `wallet` (default: the signing wallet) registered, or undefined if it has none yet. */
+  async of(wallet?: string): Promise<bigint | undefined> {
+    const who = (wallet ?? this.kudo.address)?.toLowerCase();
+    if (!who) return undefined;
+    const cached = this.known.get(who);
+    if (cached !== undefined) return cached;
+    // Not cached when absent: a registration made elsewhere is found next time.
+    const found = await this.kudo.findRegisteredAgentId(who as Address);
+    if (found !== undefined) this.known.set(who, found);
+    return found;
+  }
+
+  /** Records the id a wallet just registered. */
+  remember(wallet: string, id: bigint): void {
+    this.known.set(wallet.toLowerCase(), id);
+  }
 }
 
 export function toolContext(options: KudoToolOptions): ToolContext {
   const { kudo } = options;
   const mode: ToolMode = options.mode ?? (kudo.walletClient?.account ? "sign" : "unsigned");
+  const agentIds = options.agentIds ?? new AgentIds(kudo);
   return {
     kudo,
     mode,
@@ -69,7 +105,8 @@ export function toolContext(options: KudoToolOptions): ToolContext {
         next: `${next} Sign and send this transaction with your own wallet (e.g. viem or ethers sendTransaction) on chain ${tx.chainId}.`,
       });
     },
-    agentIdOf: (value) => {
+    agentIds,
+    agentIdOf: async (value, from) => {
       if (value !== undefined && value !== "") {
         try {
           const id = BigInt(value);
@@ -79,11 +116,13 @@ export function toolContext(options: KudoToolOptions): ToolContext {
         }
         throw new KudoError("INVALID_INPUT", `agentId must be a non-negative integer, got "${value}".`);
       }
-      if (options.defaultAgentId !== undefined) return options.defaultAgentId;
-      throw new KudoError(
-        "INVALID_INPUT",
-        "agentId is required. Call get_wallet to recover yours, or register to get one.",
-      );
+      const wallet = kudo.address ?? from;
+      if (!wallet) {
+        throw new KudoError("INVALID_INPUT", "agentId is required: this server does not sign, so pass agentId or your wallet as from.");
+      }
+      const id = await agentIds.of(wallet);
+      if (id !== undefined) return id;
+      throw new KudoError("INVALID_INPUT", `${wallet} has not registered an agent identity yet. Call register first.`);
     },
   };
 }
@@ -107,7 +146,7 @@ export const covenantId = z
   .describe("Covenant id (the cNFT token id), e.g. 109");
 export const agentIdField = z
   .union([z.string(), z.number()])
-  .describe("Your ERC-8004 agent id. Defaults to the configured KUDO_AGENT_ID.");
+  .describe("Your ERC-8004 agent id. Leave out to use the one your wallet registered.");
 export const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "an 0x address");
 export const fromField = address
   .optional()

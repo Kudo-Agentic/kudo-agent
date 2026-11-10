@@ -20,7 +20,7 @@ import { setMetadata } from "./set-metadata.js";
 import { setPromiseSettlementData } from "./set-promise-settlement-data.js";
 import { toolContext, type KudoTool, type KudoToolOptions } from "./shared.js";
 
-export { runTool, toJson, toolJsonSchema, type KudoTool, type KudoToolOptions, type ToolMode } from "./shared.js";
+export { AgentIds, runTool, toJson, toolJsonSchema, type KudoTool, type KudoToolOptions, type ToolMode } from "./shared.js";
 export { kudoFromEnv, kudoFromEnvWithKeySource, type KeySource, type KudoEnv, type KudoKeyEnv } from "./env.js";
 
 export function kudoTools(options: KudoToolOptions): KudoTool[] {

@@ -22,7 +22,7 @@ export const setMetadata = ({ kudo, signing, unsigned, agentIdOf, teeId }: ToolC
     },
     writes: true,
     execute: async ({ key, value, agentId, from }) => {
-      const id = agentIdOf(agentId);
+      const id = await agentIdOf(agentId, from);
       let v: string;
       if (key === "teeId") {
         if (!teeId) {

@@ -9,13 +9,11 @@ import { DSTACK_KEY_PATH, Kudo, KudoError, dstackPrivateKey, networks, type Kudo
  * | Variable           | Meaning                                                    |
  * |--------------------|------------------------------------------------------------|
  * | KUDO_PRIVATE_KEY   | signs locally. Leave unset for read-only / unsigned mode.  |
- * | KUDO_AGENT_ID      | your ERC-8004 id; the default for mint                     |
  * | KUDO_NETWORK       | `robinhood` (the default, and the only network)            |
  * | KUDO_RPC_URL       | RPC override                                               |
  */
 export interface KudoEnv {
   KUDO_PRIVATE_KEY?: string;
-  KUDO_AGENT_ID?: string;
   KUDO_NETWORK?: string;
   KUDO_RPC_URL?: string;
 }
@@ -23,7 +21,7 @@ export interface KudoEnv {
 export function kudoFromEnv(
   env: KudoEnv = (globalThis as { process?: { env: KudoEnv } }).process?.env ?? {},
   options: Omit<KudoOptions, "walletClient" | "network" | "rpcUrl"> & { ignoreKey?: boolean } = {},
-): { kudo: Kudo; agentId?: bigint } {
+): { kudo: Kudo } {
   const networkKey = (env.KUDO_NETWORK?.trim() || "robinhood") as NetworkKey;
   if (!(networkKey in networks)) {
     throw new KudoError("INVALID_INPUT", `KUDO_NETWORK="${networkKey}" is not one of ${Object.keys(networks).join(", ")}.`);
@@ -41,16 +39,7 @@ export function kudoFromEnv(
     walletClient = createWalletClient({ account: privateKeyToAccount(key), chain: network.chain, transport: http(rpcUrl) });
   }
 
-  const id = env.KUDO_AGENT_ID?.trim();
-  let agentId: bigint | undefined;
-  if (id) {
-    try {
-      agentId = BigInt(id);
-    } catch {
-      throw new KudoError("INVALID_INPUT", `KUDO_AGENT_ID must be a number, got "${id}".`);
-    }
-  }
-  return { kudo: new Kudo({ ...options, network: networkKey, rpcUrl, walletClient }), agentId };
+  return { kudo: new Kudo({ ...options, network: networkKey, rpcUrl, walletClient }) };
 }
 
 /**
@@ -75,7 +64,7 @@ export interface KudoKeyEnv extends KudoEnv {
 export async function kudoFromEnvWithKeySource(
   env: KudoKeyEnv = (globalThis as { process?: { env: KudoKeyEnv } }).process?.env ?? {},
   options: Omit<KudoOptions, "walletClient" | "network" | "rpcUrl"> = {},
-): Promise<{ kudo: Kudo; agentId?: bigint; keySource: KeySource; warnings: string[] }> {
+): Promise<{ kudo: Kudo; keySource: KeySource; warnings: string[] }> {
   const raw = (env.KUDO_KEY_SOURCE?.trim().toLowerCase() || "env") as KeySource;
   if (raw !== "env" && raw !== "dstack") {
     throw new KudoError("INVALID_INPUT", `KUDO_KEY_SOURCE must be "env" or "dstack", got "${env.KUDO_KEY_SOURCE}".`);

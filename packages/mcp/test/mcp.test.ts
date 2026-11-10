@@ -31,8 +31,8 @@ describe("stdio-style server", () => {
   });
 
   it("returns an unsigned mint without a key", async () => {
-    const client = await connect(createKudoMcpServer({ kudo: createKudo(), defaultAgentId: 1n }));
-    const r = await client.callTool({ name: "mint_covenant", arguments: { type: "LOAN", ask: "Lend me 5 USDG for gas.", promise: "I'll repay 5.1 USDG within one day." } });
+    const client = await connect(createKudoMcpServer({ kudo: createKudo() }));
+    const r = await client.callTool({ name: "mint_covenant", arguments: { type: "LOAN", ask: "Lend me 5 USDG for gas.", promise: "I'll repay 5.1 USDG within one day.", agentId: 1 } });
     expect(r.isError).toBe(false);
     expect(text(r)).toMatchObject({ signed: false, unsignedTransaction: { chainId: 4663 } });
   });

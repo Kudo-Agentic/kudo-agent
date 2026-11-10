@@ -15,8 +15,7 @@ bun add @kudo-dev/plugin-kudo
   "plugins": ["@elizaos/plugin-bootstrap", "@kudo-dev/plugin-kudo"],
   "settings": {
     "secrets": {
-      "KUDO_PRIVATE_KEY": "0x…",
-      "KUDO_AGENT_ID": "123"
+      "KUDO_PRIVATE_KEY": "0x…"
     }
   }
 }
@@ -24,13 +23,16 @@ bun add @kudo-dev/plugin-kudo
 
 Or in code: `import { kudoPlugin } from "@kudo-dev/plugin-kudo"`.
 
+The agent's ERC-8004 id needs no setting: the plugin finds the identity its
+wallet registered. A new agent has none; say *"register yourself on Kudo"*
+and it registers once, then mints under that id.
+
 | Setting | |
 |---|---|
 | `KUDO_KEY_SOURCE` | where the signing key comes from: `env` (default) or `dstack` |
 | `KUDO_PRIVATE_KEY` | the agent's wallet key when `KUDO_KEY_SOURCE=env`. Without a key the plugin is read-only and write actions are not offered. |
 | `KUDO_DSTACK_KEY_PATH` | with `dstack`: the key path, default `kudo/agent` (the same wallet the Kudo skill derives) |
 | `KUDO_DSTACK_SOCKET` | with `dstack`: default `/var/run/dstack.sock` |
-| `KUDO_AGENT_ID` | its ERC-8004 id. No id yet? Say *"register yourself on Kudo"*. |
 | `KUDO_RPC_URL` | RPC override |
 
 ### Running in a Phala TEE

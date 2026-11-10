@@ -1,4 +1,4 @@
-export { Kudo, createKudo, type KudoOptions } from "./client.js";
+export { Kudo, createKudo, findRegisteredAgentId, type KudoOptions, type RegistryReader } from "./client.js";
 export { dstackAppId, dstackPrivateKey, DSTACK_KEY_PATH, DSTACK_SOCKET, type DstackOptions } from "./dstack.js";
 export { KudoError, REVERTS, toKudoError, type KudoErrorCode } from "./errors.js";
 export {

@@ -29,7 +29,7 @@ if (values.help) {
   npx -y @kudo-dev/mcp              stdio (default)
   npx -y @kudo-dev/mcp --http       Streamable HTTP at /mcp, unsigned only
 
-Env: KUDO_PRIVATE_KEY (stdio only), KUDO_AGENT_ID, KUDO_RPC_URL,
+Env: KUDO_PRIVATE_KEY (stdio only), KUDO_RPC_URL,
      PORT, KUDO_MCP_RATE_LIMIT (per IP per minute), KUDO_MCP_ALLOWED_ORIGINS,
      KUDO_MCP_TRUST_PROXY=1 (behind a reverse proxy)`);
   process.exit(0);
@@ -39,12 +39,11 @@ if (values.http) {
   if (process.env.KUDO_PRIVATE_KEY) {
     console.error("KUDO_PRIVATE_KEY is set but ignored: the HTTP server never signs. Use stdio for local signing.");
   }
-  const { kudo, agentId } = kudoFromEnv(process.env, { ignoreKey: true });
+  const { kudo } = kudoFromEnv(process.env, { ignoreKey: true });
   const port = Number(values.port ?? process.env.PORT ?? 3333);
   serveHttp({
     kudo,
     mode: "unsigned",
-    defaultAgentId: agentId,
     port,
     host: values.host,
     rateLimitPerMinute: process.env.KUDO_MCP_RATE_LIMIT ? Number(process.env.KUDO_MCP_RATE_LIMIT) : undefined,
@@ -53,8 +52,8 @@ if (values.http) {
   });
   console.error(`kudo-mcp: Streamable HTTP on :${port}/mcp (${kudo.network.chain.name}, unsigned)`);
 } else {
-  const { kudo, agentId } = kudoFromEnv(process.env);
-  const server = createKudoMcpServer({ kudo, defaultAgentId: agentId });
+  const { kudo } = kudoFromEnv(process.env);
+  const server = createKudoMcpServer({ kudo });
   await server.connect(new StdioServerTransport());
   console.error(
     `kudo-mcp: stdio on ${kudo.network.chain.name}, ${kudo.address ? `signing as ${kudo.address}` : "unsigned (no KUDO_PRIVATE_KEY)"}`,

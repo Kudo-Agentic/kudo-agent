@@ -5,7 +5,7 @@
  *
  *   // character
  *   plugins: ["@kudo-dev/plugin-kudo"]
- *   settings: { secrets: { KUDO_PRIVATE_KEY: "0x…", KUDO_AGENT_ID: "123" } }
+ *   settings: { secrets: { KUDO_PRIVATE_KEY: "0x…" } }
  *
  * Every action wraps one tool from the shared Kudo tool list (packages/tools,
  * compiled into this package), so the Eliza plugin and the MCP server behave
@@ -29,21 +29,21 @@ import {
   type State,
 } from "@elizaos/core";
 import { dstackAppId, type Kudo } from "@kudo-dev/sdk";
-import { kudoFromEnv, kudoFromEnvWithKeySource, kudoTools, runTool, toolJsonSchema, type KeySource, type KudoTool } from "@kudo-dev/tools";
+import { AgentIds, kudoFromEnv, kudoFromEnvWithKeySource, kudoTools, runTool, toolJsonSchema, type KeySource, type KudoTool } from "@kudo-dev/tools";
 
 const SETTINGS = [
   "KUDO_KEY_SOURCE",
   "KUDO_PRIVATE_KEY",
   "KUDO_DSTACK_KEY_PATH",
   "KUDO_DSTACK_SOCKET",
-  "KUDO_AGENT_ID",
   "KUDO_RPC_URL",
 ] as const;
 
 /** What getKudo resolves to. */
 export interface KudoRuntimeState {
   kudo: Kudo;
-  agentId?: bigint;
+  /** The identity this wallet registered, found on chain and updated when it registers. */
+  agentIds: AgentIds;
   /** Where the signing key came from: KUDO_PRIVATE_KEY ("env") or the TEE ("dstack"). */
   keySource: "env" | "dstack";
   /** The enclave's Phala app id, when the key came from dstack. */
@@ -77,17 +77,19 @@ function kudoState(runtime: IAgentRuntime): Promise<KudoState> {
     const value = runtime.getSetting(key);
     if (value !== null && value !== undefined && String(value).trim()) env[key] = String(value);
   }
-  state = kudoFromEnvWithKeySource(env).then(async ({ kudo, agentId, keySource, warnings }) => {
+  state = kudoFromEnvWithKeySource(env).then(async ({ kudo, keySource, warnings }) => {
     for (const w of warnings) logger.warn(`[kudo] ${w}`);
     // Inside a TEE the identity records the enclave's own app id. Only read it
     // when the key itself came from dstack, so the two always describe the
     // same enclave.
     const teeId =
       keySource === "dstack" ? await dstackAppId({ socket: env.KUDO_DSTACK_SOCKET?.trim() || undefined }) : undefined;
+    // One AgentIds for the tools and the provider, so a registration shows up in both.
+    const agentIds = new AgentIds(kudo);
     const tools = new Map(
-      kudoTools({ kudo, defaultAgentId: agentId, teeId, mode: kudo.walletClient ? "sign" : "unsigned" }).map((t) => [t.name, t]),
+      kudoTools({ kudo, agentIds, teeId, mode: kudo.walletClient ? "sign" : "unsigned" }).map((t) => [t.name, t]),
     );
-    return { kudo, agentId, keySource, teeId, tools };
+    return { kudo, agentIds, keySource, teeId, tools };
   });
   // A failed build is not cached, so fixing a setting and retrying works.
   state.catch(() => states.delete(runtime));
@@ -303,13 +305,16 @@ export const kudoProvider: Provider = {
   // it cannot keep a promise unprompted.
   get: async (runtime) => {
     try {
-      const { kudo, agentId } = await getKudo(runtime);
+      const { kudo, agentIds } = await getKudo(runtime);
       if (!kudo.address) {
         return { text: "Kudo: read-only (no KUDO_PRIVATE_KEY). The agent can read covenants but cannot mint or settle." };
       }
-      const owed = await kudo.listCovenants({ agentWallet: kudo.address, stage: "promise-due", limit: 5 });
+      const [agentId, owed] = await Promise.all([
+        agentIds.of(),
+        kudo.listCovenants({ agentWallet: kudo.address, stage: "promise-due", limit: 5 }),
+      ]);
       const lines = [
-        `Kudo: signing as ${kudo.address}${agentId !== undefined ? `, ERC-8004 agent ${agentId}` : " (no KUDO_AGENT_ID set — find or register one before minting)"}.`,
+        `Kudo: signing as ${kudo.address}${agentId !== undefined ? `, ERC-8004 agent ${agentId}` : " (no ERC-8004 identity registered yet — register before minting)"}.`,
         owed.length
           ? `Promises you owe now:\n${owed.map((c) => `- #${c.id}: ${c.promise} (pay per: ${c.promiseDetail || "not given"})`).join("\n")}`
           : "You owe no Kudo promises right now.",
@@ -335,7 +340,9 @@ export const kudoPlugin: Plugin = {
   description: "Kudo covenants on Robinhood Chain: register an ERC-8004 identity, mint covenants, take open asks, link proof and read agent records.",
   config: Object.fromEntries(SETTINGS.map((k) => [k, process.env[k] ?? null])),
   init: async (_config, runtime) => {
-    const { kudo, agentId, keySource } = await getKudo(runtime);
+    const { kudo, agentIds, keySource } = await getKudo(runtime);
+    // Found, not configured: the identity this wallet registered, if any.
+    const agentId = kudo.address ? await agentIds.of().catch(() => undefined) : undefined;
     logger.info(
       `[kudo] ${kudo.network.chain.name}: ${kudo.address ? `signing as ${kudo.address} (key from ${keySource === "dstack" ? "the TEE via dstack" : "KUDO_PRIVATE_KEY"})` : "read-only"}${agentId !== undefined ? `, agent ${agentId}` : ""}`,
     );

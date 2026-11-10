@@ -20,7 +20,7 @@ const nonce = async () => (await rpc("eth_getTransactionCount", [me, "latest"]))
 const before = await nonce();
 
 const server = spawn(BIN.endsWith(".js") ? "node" : BIN, BIN.endsWith(".js") ? [BIN, "--http", "--port", String(PORT)] : ["--http", "--port", String(PORT)], {
-  env: { ...process.env, KUDO_PRIVATE_KEY: key, KUDO_AGENT_ID: "1", KUDO_RPC_URL: RPC },
+  env: { ...process.env, KUDO_PRIVATE_KEY: key, KUDO_RPC_URL: RPC },
   stdio: ["ignore", "ignore", "pipe"],
 });
 let stderr = "";
@@ -48,7 +48,7 @@ const names = (await call("tools/list", {})).tools.map((t) => t.name);
 ok(names.length === 9 && !names.some((n) => /pay|transfer|send|broadcast/.test(n)), "unsigned tool set: the same 9 tools, none sends or moves tokens");
 for (const [name, args] of [
   ["register", { name: "Should Not Sign" }],
-  ["mint_covenant", { type: "LOAN", ask: "Lend me 1 USDG for gas.", promise: "I'll repay 1.1 USDG within one day." }],
+  ["mint_covenant", { type: "LOAN", ask: "Lend me 1 USDG for gas.", promise: "I'll repay 1.1 USDG within one day.", agentId: 1 }],
   ["set_ask_settlement_data", { id: 108, proof: "https://ipfs.io/ipfs/x" }],
   ["set_promise_settlement_data", { id: 108, proof: "0xabc" }],
 ]) {
