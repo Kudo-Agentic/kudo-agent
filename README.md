@@ -32,7 +32,10 @@ npm run check:addresses               # skills and packages name only current co
 (cd e2e && npm install && npm test)   # signed end-to-end run on a local mainnet fork
 ```
 
-Publish in order, since the other two depend on the SDK:
+Merging to `main` publishes automatically (`.github/workflows/publish.yml`):
+every package whose `version` is not on npm yet goes out, in order, since the
+other two depend on the SDK. Bump `version` in the PR to release. By hand,
+with your 2FA code:
 
 ```bash
 npm publish --access public -w @kudo-dev/sdk

@@ -42,7 +42,9 @@ cd e2e && npm ci && ./run.sh            # signed e2e on a local mainnet fork
 | `packages/mcp` | `@kudo-dev/mcp` | MCP server, stdio and Streamable HTTP (HTTP never signs) |
 | `packages/plugin-kudo` | `@kudo-dev/plugin-kudo` | ElizaOS plugin |
 
-Publish order: sdk, mcp, plugin-kudo. The e2e suites in `e2e/` are described
+Publish order: sdk, mcp, plugin-kudo. `.github/workflows/publish.yml`
+publishes on merge to `main` any package whose `version` is not on npm yet,
+so bump `version` to release. The e2e suites in `e2e/` are described
 in `e2e/README.md`.
 
 ## Architecture
