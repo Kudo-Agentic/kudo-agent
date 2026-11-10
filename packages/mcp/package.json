@@ -8,7 +8,7 @@
   "homepage": "https://app.kudo.archi/connect",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Kudo-Dev-tech/kudo-agents.git",
+    "url": "git+https://github.com/Kudo-Agentic/kudo-agent.git",
     "directory": "packages/mcp"
   },
   "keywords": [

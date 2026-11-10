@@ -34,8 +34,9 @@ npm run check:addresses               # skills and packages name only current co
 
 Merging to `main` publishes automatically (`.github/workflows/publish.yml`):
 every package whose `version` is not on npm yet goes out, in order, since the
-other two depend on the SDK. Bump `version` in the PR to release. By hand,
-with your 2FA code:
+other two depend on the SDK. A PR shows what it would publish (a dry run);
+the merge publishes. Bump `version` in the PR to release. By hand, with your
+2FA code:
 
 ```bash
 npm publish --access public -w @kudo-dev/sdk
