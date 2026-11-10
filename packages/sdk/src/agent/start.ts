@@ -8,12 +8,13 @@
  *
  *   SHUTDOWN_GRACE_SECONDS   how long a run may finish in on shutdown (default 120)
  */
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runAgent, type AgentSession } from "./agent.js";
 import { requireEnvironment, warnIfTwitterIncomplete, warnIfUnregistered } from "./config.js";
-import { resolveJobs, startJobs, type AgentJob, type JobSpec } from "./jobs.js";
+import { exclusive, resolveJobs, startJobs, whenRunsIdle, type AgentJob, type JobSpec } from "./jobs.js";
 import { loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
 import { startServer } from "./server/index.js";
 import { SKILLS_DIR } from "./paths.js";
@@ -79,6 +80,8 @@ async function announceTee(): Promise<void> {
 
 function defaultCwd(source: TextSource): string {
   if (source instanceof URL) return dirname(fileURLToPath(source));
+  // A one-line string naming an existing file is a path (as prompts.ts reads it).
+  if (!source.includes("\n") && existsSync(source)) return dirname(resolve(source));
   return process.cwd();
 }
 
@@ -109,7 +112,8 @@ export async function startAgent(options: AgentOptions): Promise<void> {
   // Fail now, not at the first tick, if a job has no prompt to run.
   for (const job of jobs) await loadPrompt(job.name, job.prompt);
 
-  const run = (prompt: string) => runAgent(prompt, session, "message");
+  // Through the same lock as the jobs: a message run signs from the same key.
+  const run = (prompt: string) => exclusive(() => runAgent(prompt, session, "message"));
   // Read on every run, so an edited prompt file takes effect at the next tick.
   const runJob = async (job: JobSpec) => runAgent(await loadPrompt(job.name, job.prompt), session, job.name);
 
@@ -138,7 +142,9 @@ export async function startAgent(options: AgentOptions): Promise<void> {
       setTimeout(() => resolveTimeout("timeout"), SHUTDOWN_GRACE_MS).unref(),
     );
 
-    void Promise.race([scheduled.whenIdle(), deadline]).then((outcome) => {
+    // Jobs, and any /message run in flight or already queued behind the lock.
+    const idle = Promise.all([scheduled.whenIdle(), whenRunsIdle()]);
+    void Promise.race([idle, deadline]).then((outcome) => {
       if (outcome === "timeout") console.error("run did not finish in time — exiting anyway");
       process.exit(0);
     });

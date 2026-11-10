@@ -6,7 +6,7 @@
  *   await startAgent({
  *     systemPrompt: new URL("./system.md", import.meta.url),
  *     skills: ["chain-forensics"],
- *     jobs: { "take-work": 280, "settle-due": 310 },
+ *     jobs: { "take-work": { interval: 280 }, "settle-due": { interval: 310 } },
  *   });
  *
  * Needs the Claude Agent SDK (`npm i @anthropic-ai/claude-agent-sdk`) and

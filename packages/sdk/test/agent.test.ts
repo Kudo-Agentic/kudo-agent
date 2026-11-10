@@ -61,6 +61,12 @@ describe("prompts", () => {
     expect(await loadPrompt("anything", file)).toBe((await readFile(file, "utf8")).trim());
     await expect(loadPrompt("validate")).rejects.toThrow(/Job "validate" has no prompt/);
   });
+
+  it("refuses a prompt path that names no file rather than using the path as text", async () => {
+    await expect(loadSystemPrompt("./sytem.md")).rejects.toThrow(/does not exist/);
+    await expect(loadPrompt("validate", "validte.txt")).rejects.toThrow(/does not exist/);
+    expect(await loadPrompt("validate", "Judge.")).toBe("Judge.");
+  });
 });
 
 describe("jobs", () => {

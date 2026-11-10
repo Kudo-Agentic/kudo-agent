@@ -25,6 +25,8 @@ import { fileURLToPath } from "node:url";
 import { PROMPTS_DIR } from "./paths.js";
 
 const SAFE_NAME = /^[a-z0-9][a-z0-9-]*$/i;
+/** `./x`, `../x`, `/x`, or a single word ending in .md or .txt. */
+const LOOKS_LIKE_PATH = /^(\.{1,2}\/|\/)\S*$|^\S+\.(md|txt)$/i;
 
 /** Text, or a path / file: URL to read it from. */
 export type TextSource = string | URL;
@@ -33,6 +35,10 @@ async function read(source: TextSource): Promise<string> {
   if (source instanceof URL) return readFile(fileURLToPath(source), "utf8");
   // A one-line string naming an existing file is a path; anything else is the text itself.
   if (!source.includes("\n") && existsSync(source)) return readFile(source, "utf8");
+  // One that looks like a path but names no file is a typo, not a prompt.
+  if (!source.includes("\n") && LOOKS_LIKE_PATH.test(source.trim())) {
+    throw new Error(`Prompt file ${source} does not exist.`);
+  }
   return source;
 }
 

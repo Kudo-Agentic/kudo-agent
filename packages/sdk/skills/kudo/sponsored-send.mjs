@@ -185,9 +185,10 @@ sendAttempted = true;
 const sent = await relay("POST", "/send", { id, signatures });
 if (!sent.ok) {
   // A refusal the relay states (bad signature, expired, cap, policy) means it
-  // never submitted. Anything else — no answer, a timeout, a 5xx — may have
-  // reached Alchemy, so it is not safe to send again.
-  const refused = !sent.network && [400, 403, 410, 429, 503].includes(sent.status);
+  // never submitted. Anything else — no answer, a timeout, any 5xx (a gateway
+  // can answer 503 after the relay already handed the operation to Alchemy) —
+  // may have reached Alchemy, so it is not safe to send again.
+  const refused = !sent.network && [400, 403, 410, 429].includes(sent.status);
   if (refused) notSent(`${sent.status} ${sent.body?.error ?? ""}: ${sent.body?.reason ?? ""}`.trim());
   exit(
     SENT_UNKNOWN,

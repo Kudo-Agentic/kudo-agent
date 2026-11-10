@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { AgentRunError } from "../agent.js";
+import { redact } from "../log.js";
 import { allowLongRun, readBody, sendJson } from "./http.js";
 
 export function health(_request: IncomingMessage, response: ServerResponse): void {
@@ -52,9 +53,9 @@ export async function message(
 
   try {
     allowLongRun(request, response);
-    sendJson(response, 200, { response: await run(text.trim()) });
+    sendJson(response, 200, { response: redact(await run(text.trim())) });
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    const reason = redact(error instanceof Error ? error.message : String(error));
     console.error(`POST /message failed: ${reason}`);
 
     // A run that started and ended badly is the agent's failure (502); anything

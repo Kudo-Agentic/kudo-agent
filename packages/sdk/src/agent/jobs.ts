@@ -16,6 +16,7 @@
  *
  * A job JOBS names keeps the prompt the agent gave it.
  */
+import { redact } from "./log.js";
 import type { TextSource } from "./prompts.js";
 
 /** One scheduled job, as an agent passes it to startAgent. */
@@ -43,7 +44,7 @@ export interface Jobs {
 }
 
 const log = (job: string, message: string) =>
-  console.log(`${new Date().toISOString().slice(11, 19)} ${job}: ${message}`);
+  console.log(`${new Date().toISOString().slice(11, 19)} ${job}: ${redact(message)}`);
 
 function spec(name: string, seconds: number, prompt: TextSource | undefined, source: string): JobSpec {
   if (!name || !Number.isFinite(seconds) || seconds < MIN_INTERVAL_SECONDS) {
@@ -89,6 +90,11 @@ export function exclusive<T>(work: () => Promise<T>): Promise<T> {
     () => undefined,
   );
   return next;
+}
+
+/** Resolves once every run started or queued through `exclusive` so far has finished. */
+export function whenRunsIdle(): Promise<void> {
+  return lock;
 }
 
 /** Runs one job on its interval until stopped. `run` does one round of it. */
