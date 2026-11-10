@@ -29,7 +29,7 @@
     }
   },
   "bin": {
-    "kudo-mcp": "./dist/bin.js"
+    "kudo-mcp": "dist/bin.js"
   },
   "files": [
     "dist",
