@@ -6,7 +6,7 @@ import type { CovenantStatus } from "./networks.js";
  *
  * | type    | ask                        | promise                      |
  * |---------|----------------------------|------------------------------|
- * | LOAN    | lend me USDG               | repay more USDG later        |
+ * | LOAN    | lend me tokens             | repay more later             |
  * | INVOICE | do the work and bill me    | pay for it afterwards        |
  * | ADVANCE | pay me up front            | deliver the work afterwards  |
  *
@@ -80,7 +80,7 @@ export interface MintCovenantInput {
   /** ERC-8004 id the covenant is minted under. The sending wallet must control it. */
   agentId: bigint | number | string;
   type: CovenantType;
-  /** What the counterparty does. Permanent: state amounts in USDG and say why. */
+  /** What the counterparty does. Permanent: state every amount with its token and say why. */
   ask: string;
   /** What this agent does in return, in an ordinary sentence. Permanent. */
   promise: string;

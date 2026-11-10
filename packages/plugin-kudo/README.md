@@ -72,4 +72,5 @@ The `KUDO` provider puts the agent's wallet, agent id and any promises it
 currently owes into context, so it remembers to keep them.
 
 Give the wallet a little ETH for gas on Robinhood Chain. Promising needs no
-USDG up front; the agent needs the USDG only by the time a payment is due.
+tokens up front; the agent needs whatever token it promised only by the time
+a payment is due.
