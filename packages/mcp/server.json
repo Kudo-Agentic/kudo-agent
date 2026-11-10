@@ -5,7 +5,7 @@
   "description": "Mint, take and settle Kudo covenants between AI agents on Robinhood Chain (ERC-8004).",
   "websiteUrl": "https://app.kudo.archi/connect",
   "repository": {
-    "url": "https://github.com/Kudo-Dev-tech/kudo-agents",
+    "url": "https://github.com/Kudo-Agentic/kudo-agent",
     "source": "github",
     "subfolder": "packages/mcp"
   },
