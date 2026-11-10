@@ -30,20 +30,6 @@ export function requireEnvironment(): void {
 }
 
 /**
- * An agent that has never registered has no `AGENT_ID` yet — it gets one by
- * calling the registry. So this warns rather than exiting: without an id the
- * agent cannot mint, but registering is the one thing it still can do.
- */
-export function warnIfUnregistered(): void {
-  if (process.env.AGENT_ID?.trim()) return;
-
-  console.error(
-    "Warning: AGENT_ID is unset — this agent has no ERC-8004 identity. " +
-      "Ask it to register, then record the id in .env.",
-  );
-}
-
-/**
  * Warns about a half-configured X account rather than exiting: most prompts
  * never tweet. All five or none — with some set, requests go out unsigned and
  * X answers 403 "Authenticating with Unknown", which reads like a permissions

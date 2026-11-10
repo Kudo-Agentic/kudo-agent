@@ -84,17 +84,17 @@ every write, a USDG payment included, is sponsored first. Never commit `.env`.
 npx tsx --env-file=.env index.ts
 ```
 
-On a first run it warns that `AGENT_ID` is unset: it has no ERC-8004 identity
-yet. Ask it to register:
+A new agent has no ERC-8004 identity yet, and says so at startup. It registers
+at its first run, the first job or `/message`; to have it register before any
+job runs, send it a message:
 
 ```bash
 curl -s localhost:3000/message -H 'content-type: application/json' \
   -d '{"message": "Register your ERC-8004 identity."}'
 ```
 
-Put the id it reports in `.env` as `AGENT_ID`, and restart. It registers once.
-Registering again would create a second, permanent identity, and the `kudo`
-skill checks for that first.
+It registers once. On every later start it finds that identity in the
+registry by itself, and `GET /identity` reports it.
 
 While trying things out, `TICK_INTERVAL_SECONDS=0` in `.env` stops the jobs, and
 `JOBS=settle-due:60` changes the schedule, both without touching code.

@@ -21,7 +21,8 @@ No private key ever appears in output — always pass it as
 | `RPC_URL` | chain RPC |
 | `KUDO` | Kudo contract address |
 | `USDG` | settlement token, ERC-20, six decimals |
-| `AGENT_ID` | this agent's ERC-8004 identity id |
+| `AGENT_ID` | this agent's ERC-8004 identity id, set by the runtime; empty until it registers. See **Your agent id** |
+| `KUDO_AGENT_ID_FILE` | where this agent writes its id after registering |
 | `IDENTITY_REGISTRY` | ERC-8004 Identity Registry address |
 | `AGENT_NAME` | the name registered on-chain |
 | `TEE_ID` | Phala app id of the enclave this agent runs in |
@@ -99,20 +100,36 @@ Follow the kudo skill's startup steps, with three differences.
   run; that id belongs to a different app, and putting it on-chain would
   publish a claim that is not true. `TEE_TRUST_URL` is the link to give anyone
   who asks how to verify this agent.
-- **Recording `AGENT_ID`.** In a local run, write the id to `.env`, replacing
-  the line rather than appending:
-
-  ```bash
-  sed -i.bak "s/^AGENT_ID=.*/AGENT_ID=$AGENT_ID/" .env
-  grep '^AGENT_ID=' .env   # read back; empty means the line was missing
-  ```
-
-  **In a TEE this achieves nothing**: the environment comes from the deployment
-  config and the filesystem does not survive a restart. Report the id and say
-  it must be recorded in the deployment config.
+- **The runtime finds your id**, so skip the kudo skill's lookup (startup
+  step 3). See **Your agent id** below.
 - **Another agent's id.** Before describing a covenant as some named agent's
   promise, verify `ownerOf(agentId)` still equals that covenant's
   `agentWallet`, and say so if it does not.
+
+## Your agent id
+
+At startup the runtime reads the Identity Registry's `Registered` events for
+your wallet and sets `$AGENT_ID` to the identity you registered. **If
+`$AGENT_ID` is set, it is yours: use it, without checking or looking it up.**
+
+**If `$AGENT_ID` is empty, you are a new agent.** Before anything else in this
+run:
+
+1. Confirm with `balanceOf` (the kudo skill's startup step 1) that your wallet
+   owns no identity. If it owns one (an identity sent to you rather than
+   registered by you), **do not register**: report it and stop.
+2. Register, sponsored first, as the kudo skill's startup step 2 says. Your id
+   is `topics[1]` of the receipt's `Registered` log.
+3. Write the id where the runtime reads it:
+
+   ```bash
+   printf '%s' <id> > "$KUDO_AGENT_ID_FILE"
+   ```
+
+   From your next run on, `$AGENT_ID` holds it. In this run, use the id you
+   just got.
+
+Report the id once you have registered.
 
 ## Paying in USDG
 

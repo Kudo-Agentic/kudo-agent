@@ -85,6 +85,50 @@ describe("jobs", () => {
   });
 });
 
+describe("AGENT_ID", () => {
+  it("is set from the id a new agent wrote after registering", async () => {
+    const { prepareAgentIdFile, syncAgentId } = await import("../src/agent/agent-id.js");
+    const env: NodeJS.ProcessEnv = {};
+    const file = await prepareAgentIdFile(env);
+    expect(env.KUDO_AGENT_ID_FILE).toBe(file);
+
+    expect(await syncAgentId(env)).toBeUndefined(); // not registered yet
+    expect(env.AGENT_ID).toBeUndefined();
+
+    await writeFile(file, "23346\n");
+    expect(await syncAgentId(env)).toBe("23346");
+    expect(env.AGENT_ID).toBe("23346");
+    expect(await syncAgentId(env)).toBeUndefined(); // unchanged, nothing to report
+
+    await writeFile(file, "not an id");
+    expect(await syncAgentId(env)).toBeUndefined();
+    expect(env.AGENT_ID).toBe("23346");
+  });
+
+  it("is found from the wallet's Registered events, newest first, skipping ids it no longer owns", async () => {
+    const { findRegisteredAgentId } = await import("../src/agent/agent-id.js");
+    const me = "0x8AF5d198744Ba668689ea90946796a088e00DA33";
+    const other = "0x4902Dbca318a6d5B09f2383003C79aC41ED62CEd";
+    const owners: Record<string, string> = { "7": me, "9": other };
+    const windows: Array<[bigint, bigint]> = [];
+    const client = {
+      readContract: async ({ functionName, args }: { functionName: string; args: [unknown] }) =>
+        functionName === "balanceOf" ? 1n : owners[String(args[0])],
+      getBlockNumber: async () => 25n,
+      getLogs: async ({ fromBlock, toBlock }: { fromBlock: bigint; toBlock: bigint }) => {
+        windows.push([fromBlock, toBlock]);
+        // id 7 registered in block 3, id 9 (since transferred away) in block 4.
+        return fromBlock <= 3n ? [{ args: { agentId: 7n } }, { args: { agentId: 9n } }] : [];
+      },
+    };
+    expect(await findRegisteredAgentId(client as never, me, me, 10n)).toBe(7n);
+    expect(windows).toEqual([[16n, 25n], [6n, 15n], [0n, 5n]]);
+
+    const none = { ...client, readContract: async () => 0n };
+    expect(await findRegisteredAgentId(none as never, me, me, 10n)).toBeUndefined();
+  });
+});
+
 describe("the library", () => {
   it("never loads the agent code or the Agent SDK", async () => {
     const source = await readFile(new URL("../src/index.ts", import.meta.url), "utf8");

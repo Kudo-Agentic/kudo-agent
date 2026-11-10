@@ -13,7 +13,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runAgent, type AgentSession } from "./agent.js";
-import { requireEnvironment, warnIfTwitterIncomplete, warnIfUnregistered } from "./config.js";
+import { prepareAgentIdFile, resolveAgentId, syncAgentId } from "./agent-id.js";
+import { requireEnvironment, warnIfTwitterIncomplete } from "./config.js";
 import { exclusive, resolveJobs, startJobs, whenRunsIdle, type AgentJob, type JobSpec } from "./jobs.js";
 import { loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
 import { startServer } from "./server/index.js";
@@ -100,7 +101,8 @@ export async function createSession(options: AgentOptions): Promise<AgentSession
 export async function startAgent(options: AgentOptions): Promise<void> {
   requireEnvironment();
   warnIfTwitterIncomplete();
-  warnIfUnregistered();
+  // AGENT_ID comes from the registry, never from the environment (agent-id.ts).
+  await resolveAgentId();
   await announceTee();
   // The kudo skill's sponsored-send script, which every write tries first.
   process.env.KUDO_SPONSORED_SEND = join(SKILLS_DIR, "kudo", "sponsored-send.mjs");
@@ -112,10 +114,24 @@ export async function startAgent(options: AgentOptions): Promise<void> {
   // Fail now, not at the first tick, if a job has no prompt to run.
   for (const job of jobs) await loadPrompt(job.name, job.prompt);
 
+  // Where a new agent writes its id after registering; every run starts from it.
+  await prepareAgentIdFile();
+  const beforeRun = async () => {
+    const recorded = await syncAgentId();
+    if (recorded) console.log(`AGENT_ID ${recorded}, as the agent recorded it after registering`);
+  };
+
   // Through the same lock as the jobs: a message run signs from the same key.
-  const run = (prompt: string) => exclusive(() => runAgent(prompt, session, "message"));
+  const run = (prompt: string) =>
+    exclusive(async () => {
+      await beforeRun();
+      return runAgent(prompt, session, "message");
+    });
   // Read on every run, so an edited prompt file takes effect at the next tick.
-  const runJob = async (job: JobSpec) => runAgent(await loadPrompt(job.name, job.prompt), session, job.name);
+  const runJob = async (job: JobSpec) => {
+    await beforeRun();
+    return runAgent(await loadPrompt(job.name, job.prompt), session, job.name);
+  };
 
   const server = startServer(run, options.port);
   const scheduled = startJobs(jobs, runJob);

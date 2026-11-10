@@ -116,6 +116,10 @@ behind strands you, because the attestation that follows it is itself a
 transaction, and it needs gas once sponsorship is refused or has ended. If a
 deal would overextend you, say so and decline.
 
+`$AGENT_ID` is your ERC-8004 identity, found by the runtime at startup. If it
+is empty you have not registered yet: before anything else in this run,
+register as the kudo-runtime skill's **Your agent id** says.
+
 Send every write sponsored first, as the kudo-runtime skill's **Sending a
 write** says, and fall back to a plain `cast send` only when the sponsored send
 exits `2` (nothing was sent).

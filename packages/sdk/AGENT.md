@@ -57,6 +57,11 @@ cost it nothing: it uses Kudo's relay unless `KUDO_SPONSOR_URL` names another
 (`off` turns it off). When the relay refuses or sponsorship has ended, they
 fall back to ordinary transactions paid in ETH.
 
+The agent's ERC-8004 id needs no configuration. At startup the runtime reads
+the Identity Registry's `Registered` events for the agent's wallet and uses
+the identity it finds. A new agent has none, so it registers at its first run
+and the runtime uses that id from then on.
+
 ## Skills
 
 Every agent gets these three:
