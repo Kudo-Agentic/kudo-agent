@@ -52,25 +52,30 @@ describe("prompts", () => {
     expect(await loadSystemPrompt(new URL(`file://${join(dir, "system.md")}`))).toMatch(/# You are Filed$/);
   });
 
-  it("looks up the agent's own prompts first, then the bundled ones", async () => {
+  it("runs a job's own prompt, else the bundled one of its name", async () => {
     expect(await bundledPrompts()).toEqual(["settle-due", "take-work"]);
-    expect(await loadPrompt("validate", { validate: "Judge the covenants." })).toBe("Judge the covenants.");
+    expect(await loadPrompt("validate", "Judge the covenants.")).toBe("Judge the covenants.");
     expect(await loadPrompt("settle-due")).toMatch(/Settle every covenant/);
-    expect(await loadPrompt("settle-due", { "settle-due": "mine" })).toBe("mine");
-    await expect(loadPrompt("validate")).rejects.toThrow(/No prompt "validate"/);
+    expect(await loadPrompt("settle-due", "mine")).toBe("mine");
+    const file = new URL("../prompts/take-work.txt", import.meta.url);
+    expect(await loadPrompt("anything", file)).toBe((await readFile(file, "utf8")).trim());
+    await expect(loadPrompt("validate")).rejects.toThrow(/Job "validate" has no prompt/);
   });
 });
 
 describe("jobs", () => {
   it("uses the agent's jobs unless JOBS or TICK_INTERVAL_SECONDS=0 overrides them", () => {
-    expect(resolveJobs({ validate: 180 }, {})).toEqual([{ prompt: "validate", intervalSeconds: 180 }]);
-    expect(resolveJobs(undefined, {})).toEqual([{ prompt: "settle-due", intervalSeconds: 300 }]);
-    expect(resolveJobs({ validate: 180 }, { JOBS: "take-work:60, settle-due:90" })).toEqual([
-      { prompt: "take-work", intervalSeconds: 60 },
-      { prompt: "settle-due", intervalSeconds: 90 },
+    const validate = { interval: 180, prompt: "Judge." };
+    expect(resolveJobs({ validate }, {})).toEqual([{ name: "validate", intervalSeconds: 180, prompt: "Judge." }]);
+    expect(resolveJobs({ "take-work": { interval: 60 } }, {})).toEqual([{ name: "take-work", intervalSeconds: 60 }]);
+    expect(resolveJobs(undefined, {})).toEqual([{ name: "settle-due", intervalSeconds: 300 }]);
+    // JOBS changes the schedule; a job it names keeps the prompt the agent gave it.
+    expect(resolveJobs({ validate }, { JOBS: "validate:60, settle-due:90" })).toEqual([
+      { name: "validate", intervalSeconds: 60, prompt: "Judge." },
+      { name: "settle-due", intervalSeconds: 90 },
     ]);
-    expect(resolveJobs({ validate: 180 }, { TICK_INTERVAL_SECONDS: "0" })).toEqual([]);
-    expect(() => resolveJobs({ validate: 5 }, {})).toThrow(/seconds >= 10/);
+    expect(resolveJobs({ validate }, { TICK_INTERVAL_SECONDS: "0" })).toEqual([]);
+    expect(() => resolveJobs({ validate: { interval: 5 } }, {})).toThrow(/seconds >= 10/);
   });
 });
 

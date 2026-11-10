@@ -4,5 +4,9 @@ await startAgent({
   systemPrompt: new URL("./system.md", import.meta.url),
   // He only delivers what he can support, and on chain that means following the money himself.
   skills: ["chain-forensics"],
-  jobs: { "take-work": 280, "settle-due": 310 },
+  // Both run the prompts the SDK ships under these names.
+  jobs: {
+    "take-work": { interval: 280 },
+    "settle-due": { interval: 310 },
+  },
 });

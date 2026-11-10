@@ -69,7 +69,7 @@ SDK is an optional peer dependency.
    `kudo` skill; `kudo-runtime` holds only what is specific to the runtime.
 3. Shared rules live once, in `packages/sdk/prompts/common.md`. A prompt that
    only one agent may run lives in that agent's folder and is passed to
-   `startAgent` as one of its `prompts`.
+   `startAgent` as that job's `prompt`.
 4. `packages/sdk/docker-compose.yml` pins the image by digest, never by tag,
    and holds no secret values (`${VARS}` only).
 5. Mainnet only: the testnet Kudo is an older contract version the skills no

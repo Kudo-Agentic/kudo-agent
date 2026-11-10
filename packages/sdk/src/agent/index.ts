@@ -16,4 +16,4 @@ export { startAgent, createSession, type AgentOptions } from "./start.js";
 export { runAgent, AgentRunError, type AgentSession } from "./agent.js";
 export { bundledSkills, DEFAULT_SKILLS, type SkillRef } from "./skills.js";
 export { bundledPrompts, loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
-export { resolveJobs, type JobSpec } from "./jobs.js";
+export { resolveJobs, type AgentJob, type JobSpec } from "./jobs.js";

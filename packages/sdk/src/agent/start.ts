@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 import { runAgent, type AgentSession } from "./agent.js";
 import { requireEnvironment, warnIfTwitterIncomplete, warnIfUnregistered } from "./config.js";
-import { resolveJobs, startJobs } from "./jobs.js";
+import { resolveJobs, startJobs, type AgentJob, type JobSpec } from "./jobs.js";
 import { loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
 import { startServer } from "./server/index.js";
 import { SKILLS_DIR } from "./paths.js";
@@ -29,10 +29,13 @@ export interface AgentOptions {
    * file: URL to a skill folder of your own.
    */
   skills?: SkillRef[];
-  /** Task prompts of this agent's own, by name, added to the bundled `take-work` and `settle-due`. */
-  prompts?: Record<string, TextSource>;
-  /** Task prompt name → seconds between runs. Default `{ "settle-due": 300 }`; JOBS overrides it. */
-  jobs?: Record<string, number>;
+  /**
+   * Scheduled jobs by name, each `{ interval, prompt? }`: seconds between runs
+   * and the task prompt (text, a path or a file: URL). A job without a prompt
+   * runs the bundled one of its name (`take-work`, `settle-due`). Default
+   * `{ "settle-due": { interval: 300 } }`; JOBS overrides the schedule.
+   */
+  jobs?: Record<string, AgentJob>;
   /** HTTP port. Default PORT, else 3000. */
   port?: number;
   /** Claude model id. Default `claude-opus-5`. */
@@ -103,11 +106,12 @@ export async function startAgent(options: AgentOptions): Promise<void> {
   console.log(`skills: ${session.skills.names.join(", ")}`);
 
   const jobs = resolveJobs(options.jobs);
-  // Fail now, not at the first tick, if a job names a prompt this agent lacks.
-  for (const job of jobs) await loadPrompt(job.prompt, options.prompts);
+  // Fail now, not at the first tick, if a job has no prompt to run.
+  for (const job of jobs) await loadPrompt(job.name, job.prompt);
 
   const run = (prompt: string) => runAgent(prompt, session);
-  const runJob = async (name: string) => run(await loadPrompt(name, options.prompts));
+  // Read on every run, so an edited prompt file takes effect at the next tick.
+  const runJob = async (job: JobSpec) => run(await loadPrompt(job.name, job.prompt));
 
   const server = startServer(run, options.port);
   const scheduled = startJobs(jobs, runJob);

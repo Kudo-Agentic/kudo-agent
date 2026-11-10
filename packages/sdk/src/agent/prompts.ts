@@ -10,12 +10,12 @@
  *   the agent's own       who this one is, and nothing else - passed to
  *   system prompt         startAgent as `systemPrompt`
  *
- * Task prompts are looked up in the agent's own `prompts` first, then in this
- * package's prompts/ (take-work, settle-due). A prompt that only one agent
- * should run is passed only by that agent, so another agent configured to run
- * it fails at the first tick rather than attempting something it has no
- * business doing — `validate` belongs to the validator, who alone holds the
- * evaluator role.
+ * A job's task prompt is the one the agent gave that job, else this package's
+ * prompt of the same name (take-work, settle-due). A prompt that only one agent
+ * should run is given only by that agent, so another agent configured to run
+ * it fails at startup rather than attempting something it has no business
+ * doing — `validate` belongs to the validator, who alone holds the evaluator
+ * role.
  */
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
@@ -56,16 +56,17 @@ export async function bundledPrompts(): Promise<string[]> {
     .sort();
 }
 
-/** A named task prompt: the agent's own first, then this package's. */
-export async function loadPrompt(name: string, own: Record<string, TextSource> = {}): Promise<string> {
+/** A job's task prompt: its own if it has one, else this package's prompt of that name. */
+export async function loadPrompt(name: string, own?: TextSource): Promise<string> {
+  if (own !== undefined) return (await read(own)).trim();
   if (!SAFE_NAME.test(name)) {
     throw new Error(`Invalid prompt name "${name}" — use letters, digits and dashes.`);
   }
-  if (own[name] !== undefined) return (await read(own[name])).trim();
   try {
     return (await readFile(join(PROMPTS_DIR, `${name}.txt`), "utf8")).trim();
   } catch {
-    const known = [...Object.keys(own), ...(await bundledPrompts())].join(", ");
-    throw new Error(`No prompt "${name}". This agent has: ${known}.`);
+    throw new Error(
+      `Job "${name}" has no prompt and none is bundled under that name. Give it a \`prompt\`, or use one of: ${(await bundledPrompts()).join(", ")}.`,
+    );
   }
 }

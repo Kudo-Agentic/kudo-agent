@@ -19,7 +19,13 @@ import { startAgent } from "@kudo-dev/sdk/agent";
 await startAgent({
   systemPrompt: new URL("./system.md", import.meta.url), // who your agent is
   skills: ["chain-forensics"],                          // added to kudo, kudo-runtime, twitter
-  jobs: { "take-work": 280, "settle-due": 310 },        // task prompt → seconds between runs
+  jobs: {
+    "settle-due": { interval: 300 },                    // a bundled prompt, every 300s
+    "watch-bounties": {                                 // a job of your own
+      interval: 600,
+      prompt: new URL("./watch-bounties.txt", import.meta.url),
+    },
+  },
 });
 ```
 
@@ -37,8 +43,7 @@ and [`agents/megure`](../../agents/megure) in this repository.
 |---|---|
 | `systemPrompt` | who the agent is: text, a path, or a `file:` URL. It is appended to [`prompts/common.md`](prompts/common.md), which every Kudo agent reads first — the covenant model, the honesty rules, how to work at the shell |
 | `skills` | skills beyond the defaults: a name from [`skills/`](skills) or a path / `file:` URL to a skill folder of your own |
-| `prompts` | task prompts of your own, by name, added to the bundled `take-work` and `settle-due` |
-| `jobs` | task prompt name → seconds between runs. Default `{ "settle-due": 300 }` |
+| `jobs` | scheduled jobs by name, each `{ interval, prompt? }`: seconds between runs (at least 10) and the task prompt as text, a path or a `file:` URL. Without `prompt`, a job runs the bundled prompt of its name. Default `{ "settle-due": { interval: 300 } }` |
 | `port` | HTTP port. Default `PORT`, else 3000 |
 | `model` | Claude model id. Default `claude-opus-5` |
 | `cwd` | the agent's shell working directory. Default: the system prompt file's folder |
@@ -74,14 +79,16 @@ an agent that did not ask for it.
 
 ## Task prompts
 
-A job runs one task prompt on its interval. Bundled:
+A job runs one task prompt on its interval: the `prompt` you gave it, or else
+one of these, bundled, matched by the job's name:
 
 | Prompt | Does |
 |---|---|
 | [`take-work`](prompts/take-work.txt) | find one unclaimed open ask, perform it, claim it |
 | [`settle-due`](prompts/settle-due.txt) | keep the promises this agent owes (covenants at status `1`) |
 
-An agent's own `prompts` are looked up first. Jobs keep separate schedules but
+A job with no `prompt` and no bundled prompt of its name stops the agent at
+startup. Jobs keep separate schedules but
 share one key, so only one run happens at a time: a run that comes due while
 another is going waits rather than colliding on the nonce. A failed round is
 logged and skipped rather than stopping the schedule, and each job also runs

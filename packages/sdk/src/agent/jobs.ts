@@ -6,18 +6,34 @@
  * he owes on another — and each prompt stays focused on a single job rather
  * than growing branches for everything the agent might need to do.
  *
- * The agent passes its jobs to startAgent. Two environment variables override
- * them, so a deployment can change the schedule without a new image:
+ * The agent passes its jobs to startAgent, each a name with an interval and,
+ * optionally, its prompt; without one, the bundled prompt of that name is used.
+ * Two environment variables override the schedule, so a deployment can change
+ * it without a new image:
  *
- *   JOBS                    comma-separated <prompt>:<seconds>, e.g. "take-work:280,settle-due:310"
+ *   JOBS                    comma-separated <name>:<seconds>, e.g. "take-work:280,settle-due:310"
  *   TICK_INTERVAL_SECONDS   0 runs no jobs at all (something else owns this agent's work)
+ *
+ * A job JOBS names keeps the prompt the agent gave it.
  */
-const DEFAULT_JOBS: Record<string, number> = { "settle-due": 300 };
+import type { TextSource } from "./prompts.js";
+
+/** One scheduled job, as an agent passes it to startAgent. */
+export interface AgentJob {
+  /** Seconds between runs, at least ten. */
+  interval: number;
+  /** The task prompt: text, a path or a file: URL. Default: the bundled prompt of the job's name. */
+  prompt?: TextSource;
+}
+
+const DEFAULT_JOBS: Record<string, AgentJob> = { "settle-due": { interval: 300 } };
 const MIN_INTERVAL_SECONDS = 10;
 
 export interface JobSpec {
-  prompt: string;
+  name: string;
   intervalSeconds: number;
+  /** The job's own prompt; undefined means the bundled one named `name`. */
+  prompt?: TextSource;
 }
 
 export interface Jobs {
@@ -29,16 +45,16 @@ export interface Jobs {
 const log = (job: string, message: string) =>
   console.log(`${new Date().toISOString().slice(11, 19)} ${job}: ${message}`);
 
-function spec(prompt: string, seconds: number, source: string): JobSpec {
-  if (!prompt || !Number.isFinite(seconds) || seconds < MIN_INTERVAL_SECONDS) {
-    throw new Error(`${source}: "${prompt}:${seconds}" is not <prompt>:<seconds> with seconds >= ${MIN_INTERVAL_SECONDS}.`);
+function spec(name: string, seconds: number, prompt: TextSource | undefined, source: string): JobSpec {
+  if (!name || !Number.isFinite(seconds) || seconds < MIN_INTERVAL_SECONDS) {
+    throw new Error(`${source}: "${name}:${seconds}" is not <name>:<seconds> with seconds >= ${MIN_INTERVAL_SECONDS}.`);
   }
-  return { prompt, intervalSeconds: seconds };
+  return prompt === undefined ? { name, intervalSeconds: seconds } : { name, intervalSeconds: seconds, prompt };
 }
 
 /** The jobs to run: JOBS if set, none if TICK_INTERVAL_SECONDS is 0, else the agent's own. */
 export function resolveJobs(
-  own: Record<string, number> | undefined,
+  own: Record<string, AgentJob> | undefined,
   env: NodeJS.ProcessEnv = process.env,
 ): JobSpec[] {
   const raw = env.JOBS?.trim();
@@ -48,12 +64,12 @@ export function resolveJobs(
       .map((entry) => entry.trim())
       .filter(Boolean)
       .map((entry) => {
-        const [prompt = "", seconds = ""] = entry.split(":").map((part) => part.trim());
-        return spec(prompt, Number(seconds), "JOBS");
+        const [name = "", seconds = ""] = entry.split(":").map((part) => part.trim());
+        return spec(name, Number(seconds), own?.[name]?.prompt, "JOBS");
       });
   }
   if (env.TICK_INTERVAL_SECONDS?.trim() === "0") return [];
-  return Object.entries(own ?? DEFAULT_JOBS).map(([prompt, seconds]) => spec(prompt, seconds, "jobs"));
+  return Object.entries(own ?? DEFAULT_JOBS).map(([name, job]) => spec(name, Number(job?.interval), job?.prompt, "jobs"));
 }
 
 /**
@@ -76,22 +92,22 @@ export function exclusive<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /** Runs one job on its interval until stopped. `run` does one round of it. */
-function startJob(job: JobSpec, run: (prompt: string) => Promise<string>): Jobs {
+function startJob(job: JobSpec, run: (job: JobSpec) => Promise<string>): Jobs {
   let running = true;
   let inFlight: Promise<unknown> = Promise.resolve();
 
   async function once(): Promise<void> {
     try {
-      const answer = await exclusive(() => run(job.prompt));
-      log(job.prompt, answer || "(no response)");
+      const answer = await exclusive(() => run(job));
+      log(job.name, answer || "(no response)");
     } catch (error) {
       // A failed run costs one round, not the schedule.
-      log(job.prompt, `failed: ${error instanceof Error ? error.message : String(error)}`);
+      log(job.name, `failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   async function loop(): Promise<void> {
-    log(job.prompt, `every ${job.intervalSeconds}s`);
+    log(job.name, `every ${job.intervalSeconds}s`);
     while (running) {
       inFlight = once();
       await inFlight;
@@ -102,7 +118,7 @@ function startJob(job: JobSpec, run: (prompt: string) => Promise<string>): Jobs 
         await new Promise((r) => setTimeout(r, Math.min(1000, until - Date.now())));
       }
     }
-    log(job.prompt, "stopped");
+    log(job.name, "stopped");
   }
 
   const finished = loop();
@@ -119,7 +135,7 @@ function startJob(job: JobSpec, run: (prompt: string) => Promise<string>): Jobs 
 }
 
 /** Starts every job and returns a handle covering all of them. */
-export function startJobs(jobs: JobSpec[], run: (prompt: string) => Promise<string>): Jobs {
+export function startJobs(jobs: JobSpec[], run: (job: JobSpec) => Promise<string>): Jobs {
   if (jobs.length === 0) {
     console.log("no scheduled jobs — something else owns this agent's work");
     return { stop() {}, async whenIdle() {} };
