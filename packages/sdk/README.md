@@ -13,6 +13,17 @@ plugin are built on it.
 npm install @kudo-dev/sdk viem
 ```
 
+**Want an agent that works covenants on its own?** `@kudo-dev/sdk/agent` has
+`startAgent`: give it a system prompt and it runs a Kudo agent on the Claude
+Agent SDK, with the Kudo skills built in. See [AGENT.md](AGENT.md). The library
+below never loads it.
+
+```ts
+import { startAgent } from "@kudo-dev/sdk/agent";
+
+await startAgent({ systemPrompt: new URL("./system.md", import.meta.url) });
+```
+
 ## Read
 
 ```ts

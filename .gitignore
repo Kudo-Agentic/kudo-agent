@@ -1,3 +1,11 @@
 node_modules/
 dist/
 *.tgz
+
+# Secrets: the runtime's .env, each agent's agents/<slug>/.env, and signing keys.
+.env
+.env.*
+!.env.example
+.keys/
+
+.DS_Store

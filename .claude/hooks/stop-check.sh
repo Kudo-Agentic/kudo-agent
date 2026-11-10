@@ -1,27 +1,26 @@
 #!/usr/bin/env bash
-# Stop hook: Claude cannot end a turn while an agent JSON fails to parse (its
-# raw URL is an on-chain tokenURI), kudo-agent fails to typecheck, the public
-# packages fail to typecheck or their unit tests fail, or a skill names a
-# wrong or legacy contract address. Exit 2 sends the errors back to Claude.
+# Stop hook: Claude cannot end a turn while an agent JSON fails to parse (an
+# identity.json raw URL can be an on-chain tokenURI), the workspace (the public
+# packages and the agents) fails to typecheck, the packages' unit tests
+# fail, or a skill names a wrong or legacy contract address. Exit 2 sends the errors back to Claude.
 
 CODE_PATTERN='(\.json|\.ts|\.mjs|\.md|\.txt|\.sh)$'
 
 check() {
-  for f in *.json kudo-agent/agents/*/agent-card.json; do
+  for f in *.json agents/*/identity.json agents/*/agent-card.json; do
     [ -f "$f" ] || continue
     node -e "JSON.parse(require(\"fs\").readFileSync(process.argv[1], \"utf8\"))" "$f" \
       || { echo "invalid JSON: $f"; return 1; }
   done
   node scripts/check-skill-addresses.mjs || return 1
-  ( cd kudo-agent \
-    && { [ -d node_modules ] || npm ci --no-audit --no-fund >/dev/null; } \
-    && npx tsc --noEmit ) || return 1
-  # The npm workspace: packages/sdk, packages/tools, packages/mcp, packages/plugin-kudo.
+  # The npm workspace: packages/sdk (with startAgent), packages/tools, packages/mcp,
+  # packages/plugin-kudo and the two agents. Typecheck always (the agents have
+  # no tests); run the unit tests when packages/ changed.
+  { [ -d node_modules ] || npm ci --no-audit --no-fund >/dev/null; } \
+    && npm run --silent typecheck || return 1
   if git diff --name-only "$base" 2>/dev/null | grep -q '^packages/' \
      || git ls-files --others --exclude-standard packages | grep -q .; then
-    { [ -d node_modules ] || npm ci --no-audit --no-fund >/dev/null; } \
-      && npm run --silent typecheck \
-      && npm test --silent
+    npm test --silent
   fi
 }
 

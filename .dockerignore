@@ -1,0 +1,11 @@
+# Both images (packages/sdk for an agent, packages/mcp) build from the
+# repository root. Secrets never enter a build context: an agent's .env sits in
+# its own folder, which the agent image copies whole.
+**/.env
+**/.env.*
+!**/.env.example
+**/.keys
+**/node_modules
+**/dist
+tests
+.git

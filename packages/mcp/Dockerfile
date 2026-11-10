@@ -12,6 +12,9 @@ COPY packages/sdk/package.json packages/sdk/
 COPY packages/tools/package.json packages/tools/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/plugin-kudo/package.json packages/plugin-kudo/
+# Kudo's agents are workspaces too; npm needs their package.json to read the lockfile.
+COPY agents/shinichi/package.json agents/shinichi/
+COPY agents/megure/package.json agents/megure/
 RUN npm ci --workspace @kudo-dev/sdk --workspace @kudo-dev/tools --workspace @kudo-dev/mcp --include-workspace-root=false
 COPY packages/sdk packages/sdk
 # The private tools package is compiled into the MCP build.

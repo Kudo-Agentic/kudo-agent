@@ -1,78 +1,81 @@
-# kudo-agents
+# kudo-agent
 
-Three things in one repo:
+Two parts:
 
-- **Root `*.json`**: off-chain ERC-8004 agent files. Each file's raw GitHub URL
-  on `main` is an agent's on-chain `tokenURI`.
-- **`kudo-agent/`**: the covenant agent service, on the Claude Agent SDK. It
-  runs in a Phala TEE.
-- **Agent onboarding**: `skills/kudo/SKILL.md` (the public skill; app.kudo.archi
-  links to its raw URL on `main`) and the npm workspace in `packages/`.
+- **`packages/`**: everything needed to use Kudo or run a Kudo agent.
+  `@kudo-dev/sdk` is the library and, at `@kudo-dev/sdk/agent`, `startAgent`:
+  the runtime (on the Claude Agent SDK), its task prompts (`prompts/`) and every
+  skill, including the public `kudo` skill (`skills/kudo/SKILL.md`; app.kudo.archi
+  links to its raw URL on `main`). Also the MCP server and the ElizaOS plugin.
+- **`agents/`**: Kudo's own two agents, each a few lines that call `startAgent`
+  with its system prompt, extra skills and jobs: `shinichi` and `megure` (the
+  evaluator). Each also holds its off-chain ERC-8004 file (`identity.json`).
+
+Plus `tests/e2e/`, signed suites on a local mainnet fork.
 
 ## Commands
 
 ```bash
-cd kudo-agent
-npm ci
-npx tsc --noEmit    # typecheck
-npm run dev         # HTTP server + settlement loop; needs .env (copy .env.example)
-docker compose up -d
-```
-
-kudo-agent has no test suite. The Stop hook (`.claude/hooks/stop-check.sh`)
-checks that every agent JSON parses, that kudo-agent typechecks, that no skill
-names a wrong or legacy contract address, and, when `packages/` changed, that
-the packages typecheck and their unit tests pass, before a turn may end.
-
-## Packages
-
-```bash
-npm ci                    # at the repo root: the workspace
-npm run typecheck         # builds packages/sdk first, then tsc in each package
+npm ci                    # at the repo root: the whole workspace, both agents included
+npm run typecheck         # builds packages/sdk first, then tsc in each workspace
 npm test                  # unit tests (offline)
 npm run build
-npm run check:addresses   # skills and packages name only the current contracts
-cd e2e && npm ci && ./run.sh            # signed e2e on a local mainnet fork
+npm run check:addresses   # skills, prompts and packages name only the current contracts
+cd agents/shinichi && npx tsx --env-file=.env index.ts   # run an agent; needs .env
+cd tests/e2e && npm ci && ./run.sh                       # signed e2e on a local mainnet fork
 ```
 
-| Package | npm | |
+The agents have no test suite. The Stop hook (`.claude/hooks/stop-check.sh`)
+checks that every identity and agent-card JSON parses, that no skill names a
+wrong or legacy contract address, that the workspace typechecks, and, when
+`packages/` changed, that the unit tests pass, before a turn may end.
+
+| Workspace | npm | |
 |---|---|---|
-| `packages/sdk` | `@kudo-dev/sdk` | plain library for the Kudo contract and the ERC-8004 registries |
+| `packages/sdk` | `@kudo-dev/sdk` | library for the Kudo contract and the ERC-8004 registries; `startAgent` at `@kudo-dev/sdk/agent` |
 | `packages/tools` | private, never published | the agent tools, one file each; compiled into mcp and plugin-kudo |
 | `packages/mcp` | `@kudo-dev/mcp` | MCP server, stdio and Streamable HTTP (HTTP never signs) |
 | `packages/plugin-kudo` | `@kudo-dev/plugin-kudo` | ElizaOS plugin |
+| `agents/shinichi`, `agents/megure` | private | Kudo's own agents |
 
 Publish order: sdk, mcp, plugin-kudo. On merge to `main`,
 `.github/workflows/publish.yml` stages (`npm stage publish`, stage-only
 `NPM_ACCESS_TOKEN`) any package whose `version` is not on npm yet; PRs run it
-as a dry run. A maintainer then runs `npm stage approve` with 2FA. The e2e suites in `e2e/` are described
-in `e2e/README.md`.
+as a dry run. A maintainer then runs `npm stage approve` with 2FA. The e2e
+suites are described in `tests/e2e/README.md`.
 
 ## Architecture
 
-`kudo-agent/src/main.ts` starts the HTTP server (`src/server`: `/message`,
-`/identity`, `/health`) and the settler (`src/cron.ts`). The settler sends
-`prompts/settle-due.txt` on an interval. `src/agent` runs one Agent SDK query
-with only Bash and Skill allowed. The agent drives `cast` and `curl` at a
-shell; what it knows about the protocol is in `.claude/skills/*/SKILL.md`. The
-system prompt is `agents/_common.md` plus `agents/<AGENT>/system.md`. The
-`AGENT` env var picks the persona; the image is identical for every agent.
-`src/tee.ts` reads the Phala app id that ends up as `teeId`.
+`startAgent` (`packages/sdk/src/agent/start.ts`) starts the HTTP server
+(`server/`: `/message`, `/identity`, `/health`) and the scheduled jobs
+(`jobs.ts`), each a task prompt on an interval. `agent.ts` runs one Agent SDK
+query with only Bash and Skill allowed and no project or user settings. The
+agent drives `cast` and `curl` at a shell; what it knows about the protocol is
+in its skills, which `skills.ts` loads as one plugin holding exactly that
+agent's skills: always `kudo`, `kudo-runtime` and `twitter`, plus the agent's
+extras. The system prompt is `packages/sdk/prompts/common.md` plus the agent's
+own. `tee.ts` reads the Phala app id that ends up as `teeId`. One image per
+agent: `docker build -f packages/sdk/Dockerfile --build-arg AGENT=agents/<name> .`.
+The library (`packages/sdk/src/index.ts`) never imports `src/agent/`; the Agent
+SDK is an optional peer dependency.
 
 ## Rules
 
-1. Never rename, move or delete a root `*.json`: the URL is on-chain. Edit it
-   in place, or repoint with `setAgentUri`.
-2. In `kudo-agent/`, do not add custom tools. Put protocol knowledge in a skill
-   file and agent behaviour in prompts.
-3. Shared rules live once, in `agents/_common.md`. A prompt that only one
-   agent may run lives in that agent's directory.
-4. `docker-compose.yml` pins the image by digest, never by tag, and holds no
-   secret values (`${VARS}` only).
+1. Once an agent's ERC-8004 `tokenURI` points at its `agents/<name>/identity.json`
+   raw URL, never rename, move or delete that file: edit it in place, or repoint
+   with `setAgentUri`.
+2. The agent runtime has no custom tools. Put protocol knowledge in a skill
+   file and agent behaviour in prompts. Protocol facts belong in the public
+   `kudo` skill; `kudo-runtime` holds only what is specific to the runtime.
+3. Shared rules live once, in `packages/sdk/prompts/common.md`. A prompt that
+   only one agent may run lives in that agent's folder and is passed to
+   `startAgent` as that job's `prompt`.
+4. `packages/sdk/docker-compose.yml` pins the image by digest, never by tag,
+   and holds no secret values (`${VARS}` only).
 5. Mainnet only: the testnet Kudo is an older contract version the skills no
-   longer support. Test on a local mainnet fork (`e2e/`), then with a throwaway
-   wallet and small amounts. Never commit a `.env` or a private key.
-6. The packages and `skills/kudo` only talk to Kudo and the ERC-8004
+   longer support. Test on a local mainnet fork (`tests/e2e/`), then with a
+   throwaway wallet and small amounts. Never commit a `.env` or a private key.
+6. The packages and the public `kudo` skill only talk to Kudo and the ERC-8004
    registries: no tool or step moves tokens. An agent pays from its own wallet
    and links the transaction hash.
 7. `packages/tools` has one file per tool. Add a tool as a new file and list it

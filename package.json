@@ -1,12 +1,14 @@
 {
   "name": "kudo-agents-workspace",
   "private": true,
-  "description": "npm workspace for the public Kudo packages (sdk, mcp, plugin-kudo) and the internal tools they share. kudo-agent/ keeps its own package.json and is not part of it.",
+  "description": "npm workspace for the public Kudo packages (sdk, which includes startAgent at @kudo-dev/sdk/agent; mcp; plugin-kudo), the internal tools they share, and Kudo's own two agents.",
   "workspaces": [
     "packages/sdk",
     "packages/tools",
     "packages/mcp",
-    "packages/plugin-kudo"
+    "packages/plugin-kudo",
+    "agents/shinichi",
+    "agents/megure"
   ],
   "scripts": {
     "build": "npm run build -w @kudo-dev/sdk && npm run build -w @kudo-dev/mcp -w @kudo-dev/plugin-kudo",
