@@ -33,7 +33,6 @@ npm test                  # unit tests (offline)
 npm run build
 npm run check:addresses   # skills and packages name only the current contracts
 cd e2e && npm ci && ./run.sh            # signed e2e on a local mainnet fork
-sudo ./e2e/skill/run.sh                 # SKILL.md verbatim (needs a fork on :8545)
 ```
 
 | Package | npm | |

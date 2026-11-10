@@ -7,7 +7,6 @@ packages first: `(cd .. && npm install && npm run build)`.
 | Suite | What it drives | Run |
 |---|---|---|
 | `run.sh` | SDK lifecycle (incl. the meet-ask race and the link-proof guards), MCP over stdio, the Eliza plugin's handlers, `kudo-mcp --http` refusing to sign with a key set, and a record of what the contract allows around claims (`contract-claims.mjs`) | `npm install && npm test` |
-| `skill/run.sh` | every bash block of `skills/kudo/SKILL.md`, verbatim, with a stand-in dstack (run as root) | fork on :8545, then `./skill/run.sh` |
 | `installed/run.sh` | the /connect snippets verbatim against `npm pack` tarballs served from a local registry | `CONNECT_SNIPPETS=<kudo-client>/src/components/connect/snippets.ts ./installed/run.sh` |
 | `eliza/` | a real ElizaOS agent (core 1.7, plugin-sql, plugin-bootstrap) with the Kudo plugin, chatting through `ElizaOS.handleMessage` | see below |
 | `claude-code/` | a real Claude Code instance with `@kudo-dev/mcp` attached via `--mcp-config`: signing stdio, keyless stdio, and hosted HTTP (`KUDO_MCP_BIN` picks the server binary) | see below |

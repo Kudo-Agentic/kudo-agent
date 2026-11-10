@@ -21,6 +21,12 @@ export interface KudoToolOptions {
   mode?: ToolMode;
   /** The agent id write tools default to, e.g. from KUDO_AGENT_ID. */
   defaultAgentId?: bigint;
+  /**
+   * The Phala app id of the TEE this agent runs in, read from dstack. Only a
+   * process inside that enclave may pass it: it is what register and
+   * set_metadata write as `teeId`, and nothing else may be.
+   */
+  teeId?: string;
 }
 
 export interface KudoTool<S extends z.ZodRawShape = z.ZodRawShape> {
@@ -38,6 +44,8 @@ export interface ToolContext {
   kudo: Kudo;
   mode: ToolMode;
   signing: boolean;
+  /** The enclave's own app id, when this process runs in a TEE. */
+  teeId?: string;
   /** The unsigned-mode answer for a write: the transaction plus what to do next. */
   unsigned: (tx: TxRequest, next: string, from?: string) => Promise<unknown>;
   /** The agent id to act as: the input's, else the configured default. */
@@ -51,15 +59,14 @@ export function toolContext(options: KudoToolOptions): ToolContext {
     kudo,
     mode,
     signing: mode === "sign",
+    teeId: options.teeId?.replace(/^0x/i, "").toLowerCase() || undefined,
     unsigned: async (tx, next, from) => {
       if (from) await kudo.simulate(tx, from as Address);
       return toJson({
         signed: false,
         simulated: from ? `ok as ${from}` : "not simulated: pass `from` to dry-run as your wallet first",
         unsignedTransaction: tx,
-        next: `${next} Sign this transaction with your own wallet on chain ${tx.chainId} and broadcast it${
-          mode === "unsigned" ? ", or pass the signed raw transaction to send_signed_transaction" : ""
-        }.`,
+        next: `${next} Sign and send this transaction with your own wallet (e.g. viem or ethers sendTransaction) on chain ${tx.chainId}.`,
       });
     },
     agentIdOf: (value) => {
@@ -75,7 +82,7 @@ export function toolContext(options: KudoToolOptions): ToolContext {
       if (options.defaultAgentId !== undefined) return options.defaultAgentId;
       throw new KudoError(
         "INVALID_INPUT",
-        "agentId is required. Call find_agent_ids to recover yours, or register_agent to get one.",
+        "agentId is required. Call get_wallet to recover yours, or register to get one.",
       );
     },
   };

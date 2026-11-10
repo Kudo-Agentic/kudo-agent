@@ -15,6 +15,8 @@ import { createWalletClient, encodeFunctionData, erc20Abi, http, parseUnits } fr
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import { calls, claudeModelPlugin } from "./claude-model.ts";
+// @ts-expect-error a plain .mjs helper shared with the other suites
+import { acceptAsk } from "../../validator.mjs";
 
 const RPC = "http://127.0.0.1:8545";
 const CARTE = "0xFB9A9eB13B4Cf30963DCC0A0cbc5598Cc03B2cf3"; // mainnet USDG holder, impersonated on the fork
@@ -103,7 +105,7 @@ const used = (t: Turn, a: string) => t.actions.includes(a);
 
 // --- the conversation -----------------------------------------------------------
 let t = await say("What's your Kudo setup? Are you ready to make covenants?");
-check("KUDO_STATUS", used(t, "KUDO_STATUS"));
+check("GET_KUDO_WALLET", used(t, "GET_KUDO_WALLET"));
 
 t = await say("Register yourself on Kudo with the name 'Ada'.");
 const ids = await reader.findAgentIds(ada.account.address);
@@ -111,10 +113,10 @@ check("REGISTER_KUDO_AGENT", used(t, "REGISTER_KUDO_AGENT") && ids.length === 1,
 const adaId = ids[0];
 
 t = await say("What agent ids does your wallet own?");
-check("FIND_KUDO_AGENT_IDS", used(t, "FIND_KUDO_AGENT_IDS") && t.texts.join(" ").includes(String(adaId)));
+check("GET_KUDO_WALLET (ids)", used(t, "GET_KUDO_WALLET") && t.texts.join(" ").includes(String(adaId)));
 
 t = await say("Are there any open asks on Kudo right now that you could take?");
-check("LIST_OPEN_ASKS", used(t, "LIST_OPEN_ASKS"));
+check("open asks via GET_COVENANTS_DETAILS", used(t, "GET_COVENANTS_DETAILS"));
 
 t = await say("What's the status of covenant 112?");
 check("GET_COVENANT", used(t, "GET_COVENANT") && /112/.test(t.texts.join(" ")));
@@ -130,6 +132,7 @@ check("MINT_COVENANT", used(t, "MINT_COVENANT") && mine.length === 1 && minted?.
 // Bob performs the ask and claims it, as a counterparty agent would.
 await bob.kudo.registerAgent({ name: "Bob" });
 await bob.kudo.meetAsk(minted!.id, { proof: "https://ipfs.io/ipfs/bafkreia47kzwlipoeycokourgsngbommecsp5ap7zcpuqdybzknoxepkxm", promiseDetail: `pay: ${bob.account.address}` });
+await acceptAsk(RPC, minted!.id);
 console.log(`\n(Bob met the ask of #${minted!.id} and asked to be paid at ${bob.account.address})`);
 
 // The plugin never moves tokens: Ada's operator pays Bob from her wallet, as
@@ -140,16 +143,13 @@ await reader.publicClient.waitForTransactionReceipt({ hash: payHash });
 console.log(`\n(Ada's wallet paid Bob ${(await usdgOf(bob.account.address)) - bobBefore} USDG in ${payHash})`);
 t = await say(`Someone met the ask on your covenant ${minted!.id}, and I paid them the 5 USDG from your wallet in transaction ${payHash}. Link that payment as the proof that you kept your promise.`);
 const after = await reader.getCovenant(minted!.id);
-check("LINK_PROOF", used(t, "LINK_PROOF") && after.stage === "awaiting-evaluation", `stage ${after.stage}, proof ${after.promiseProof.slice(0, 14)}`);
-
-t = await say(`Watch covenant ${minted!.id} for a moment and tell me if its stage changes.`);
-check("WATCH_COVENANT", used(t, "WATCH_COVENANT"));
+check("SET_PROMISE_SETTLEMENT_DATA", used(t, "SET_PROMISE_SETTLEMENT_DATA") && after.stage === "awaiting-evaluation", `stage ${after.stage}, proof ${after.promiseProof.slice(0, 14)}`);
 
 t = await say("List the covenants you've minted.");
-check("LIST_COVENANTS", used(t, "LIST_COVENANTS") && t.texts.join(" ").includes(String(minted!.id)));
+check("GET_COVENANTS_DETAILS", used(t, "GET_COVENANTS_DETAILS") && t.texts.join(" ").includes(String(minted!.id)));
 
 t = await say("What's agent 20380's record on Kudo?");
-check("KUDO_AGENT_RECORD", used(t, "KUDO_AGENT_RECORD") && /kept/i.test(t.texts.join(" ")));
+check("GET_KUDO_AGENT", used(t, "GET_KUDO_AGENT") && /kept/i.test(t.texts.join(" ")));
 
 // Bob posts work; Ada performs it and claims it.
 const bobsAgent = (await reader.findAgentIds(bob.account.address))[0]!;
@@ -163,7 +163,7 @@ t = await say(
   `I already did the work for covenant ${job.covenantId} for you: the summary is at https://ipfs.io/ipfs/bafkreifszf4vt2prbnr6enbklkxci5ascofdqpzvnt4e2e3c7bsbrtmz5y. Claim the ask with that proof and ask to be paid at your wallet ${ada.account.address}.`,
 );
 const claimed = await reader.getCovenant(job.covenantId);
-check("MEET_ASK", used(t, "MEET_ASK") && claimed.askProof.includes("bafkreifszf4vt2prbnr6") && claimed.promiseDetail.toLowerCase().includes(ada.account.address.toLowerCase().slice(2, 10)),
+check("SET_ASK_SETTLEMENT_DATA", used(t, "SET_ASK_SETTLEMENT_DATA") && claimed.askProof.includes("bafkreifszf4vt2prbnr6") && claimed.promiseDetail.toLowerCase().includes(ada.account.address.toLowerCase().slice(2, 10)),
   `askProof=${claimed.askProof} promiseDetail="${claimed.promiseDetail}"`);
 
 // --- safety: things Ada must refuse or fail cleanly -------------------------------
@@ -176,4 +176,4 @@ const passed = results.filter((r) => r.pass).length;
 console.log(`\n${passed}/${results.length} checks passed. Model calls: ${calls.length} (${calls.filter((c) => c.model === "sonnet").length} sonnet), avg ${(calls.reduce((s, c) => s + c.ms, 0) / Math.max(calls.length, 1) / 1000).toFixed(1)}s`);
 for (const r of results.filter((r) => !r.pass)) console.log(`  FAILED ${r.check} ${r.note ?? ""}`);
 await eliza.stopAgents();
-process.exit(0);
+process.exit(passed === results.length ? 0 : 1);

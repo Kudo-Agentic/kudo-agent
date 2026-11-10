@@ -329,19 +329,25 @@ export class Kudo {
   }
 
   /**
-   * Throws unless a covenant is waiting for its promise proof: the ask has
-   * been met and no promise proof is linked yet. Linking before the ask is met
-   * proves nothing, and linking twice replaces the first proof.
+   * Throws unless a covenant is waiting for its promise proof: the Evaluator
+   * has accepted the claim on its ask (status IN_PROGRESS) and no promise
+   * proof is linked yet. A claim alone does not make the promise due, and
+   * linking twice replaces the first proof.
    */
   assertPromiseDue(covenant: Covenant): void {
     if (covenant.stage === "completed" || covenant.stage === "failed") {
       throw new KudoError("INVALID_INPUT", `Covenant ${covenant.id} is already closed as ${covenant.stage}.`);
     }
-    if (!covenant.askSettledAt) {
-      throw new KudoError("ASK_NOT_MET", `Covenant ${covenant.id}'s ask has not been met yet, so there is no promise to keep.`);
-    }
     if (covenant.promiseProof) {
       throw new KudoError("ALREADY_PROVEN", `Covenant ${covenant.id} already has promise proof ${covenant.promiseProof}. Do not pay or link again.`);
+    }
+    if (covenant.status !== "IN_PROGRESS") {
+      throw new KudoError(
+        "ASK_NOT_MET",
+        covenant.askSettledAt
+          ? `Covenant ${covenant.id}'s ask has been claimed but the Evaluator has not accepted it yet (status ${covenant.status}), so nothing is owed. Do not pay; wait for status IN_PROGRESS.`
+          : `Covenant ${covenant.id}'s ask has not been met yet, so there is no promise to keep.`,
+      );
     }
   }
 
@@ -434,6 +440,20 @@ export class Kudo {
       functionName: "register",
       args: [input.uri ?? "", metadata],
       description: `Register an ERC-8004 agent identity named "${name}".`,
+    });
+  }
+
+  /** Sets one metadata entry (e.g. `teeId`, `endpoint`, `name`) on an ERC-8004 identity. */
+  buildSetAgentMetadata(agentId: bigint | number | string, key: string, value: string): TxRequest {
+    const id = toBigInt(agentId, "agentId");
+    const k = key?.trim();
+    if (!k) throw new KudoError("INVALID_INPUT", "key is required.");
+    return this.buildTx({
+      address: this.network.identityRegistry,
+      abi: identityRegistryAbi,
+      functionName: "setMetadata",
+      args: [id, k, stringToHex(value ?? "")],
+      description: `Set "${k}" to "${value}" on agent ${id}.`,
     });
   }
 
@@ -560,6 +580,9 @@ export class Kudo {
     if (covenant.askSettledAt) {
       throw new KudoError("ALREADY_MET", `Covenant ${covenant.id}'s ask was already met at ${covenant.askSettledAt.toISOString()} with ${covenant.askProof}.`);
     }
+    if (covenant.stage !== "ask-open") {
+      throw new KudoError("ALREADY_MET", `Covenant ${covenant.id} is ${covenant.status} (${covenant.stage}); its ask is no longer open.`);
+    }
     if (covenant.agentWallet.toLowerCase() === account.address.toLowerCase()) {
       throw new KudoError("INVALID_INPUT", `You minted covenant ${covenant.id}; you cannot be your own counterparty.`);
     }
@@ -620,6 +643,22 @@ export class Kudo {
   }
 
   /**
+   * Sets one metadata entry on an identity this wallet owns. Refuses an id
+   * owned by anyone else before anything is signed.
+   */
+  async setAgentMetadata(agentId: bigint | number | string, key: string, value: string): Promise<{ hash: Hex }> {
+    const { account } = this.requireWallet();
+    const tx = this.buildSetAgentMetadata(agentId, key, value);
+    const id = toBigInt(agentId, "agentId");
+    const owner = (await this.getAgent(id)).owner;
+    if (owner.toLowerCase() !== account.address.toLowerCase()) {
+      throw new KudoError("NOT_AGENT_OWNER", `Agent ${id} belongs to ${owner}, not ${account.address}.`);
+    }
+    const receipt = await this.send(tx);
+    return { hash: receipt.transactionHash };
+  }
+
+  /**
    * Resolves when a covenant reaches `until` (default: closed, i.e. completed
    * or failed). Polls, so it works on any RPC.
    */
@@ -676,16 +715,20 @@ export class Kudo {
   private toCovenant(id: bigint, raw: RawCovenant, owner?: Address): Covenant {
     const status = this.network.statuses[raw.status] ?? "MINTED";
     const askSettledAt = raw.askSettledAt > 0n ? new Date(Number(raw.askSettledAt) * 1000) : null;
+    // Only the Evaluator makes a promise due, by setting IN_PROGRESS once it
+    // has accepted the claim on the ask. A claim alone is "ask-claimed".
     const stage: CovenantStage =
       status === "FAILED"
         ? "failed"
         : status === "COMPLETED"
           ? "completed"
-          : !askSettledAt
-            ? "ask-open"
-            : !raw.promiseSettlementData
+          : raw.promiseSettlementData
+            ? "awaiting-evaluation"
+            : status === "IN_PROGRESS"
               ? "promise-due"
-              : "awaiting-evaluation";
+              : askSettledAt
+                ? "ask-claimed"
+                : "ask-open";
     return {
       id,
       owner,

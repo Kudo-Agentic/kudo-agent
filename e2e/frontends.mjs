@@ -1,5 +1,5 @@
 // The write path through each front end, with real signatures against the
-// local fork: the MCP server (signing and unsigned → send_signed_transaction)
+// local fork: the MCP server (signing, and unsigned with the caller's own wallet sending)
 // and the ElizaOS plugin. Run through ./run.sh.
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -8,6 +8,7 @@ import { createWalletClient, http } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createKudo, robinhood } from "@kudo-dev/sdk";
 import { kudoPlugin } from "@kudo-dev/plugin-kudo";
+import { acceptAsk } from "./validator.mjs";
 
 const MCP = fileURLToPath(new URL("../packages/mcp/dist/bin.js", import.meta.url));
 const RPC = "http://127.0.0.1:8545";
@@ -29,18 +30,19 @@ env.KUDO_AGENT_ID = reg.agentId;
 const minted = await sdk.mintCovenant({ agentId, type: "ADVANCE", ask: "Pay me 3 USDG up front for a logo.", promise: "I'll deliver the logo as a PNG on IPFS within one day." });
 const mint = { covenantId: minted.covenantId.toString() };
 ok(mint.covenantId, `minted covenant ${mint.covenantId}`);
-// A counterparty meets the ask, so the promise is due and link_proof below is allowed.
+// A counterparty meets the ask and the validator accepts it, so the promise is due and set_promise_settlement_data below is allowed.
 const payer = privateKeyToAccount(generatePrivateKey());
 await rpc("hardhat_setBalance", [payer.address, "0xDE0B6B3A7640000"]);
 await createKudo({ rpcUrl: RPC, walletClient: createWalletClient({ account: payer, chain, transport: http(RPC) }) }).meetAsk(mint.covenantId, { proof: "0x" + "12".repeat(32) });
+await acceptAsk(RPC, mint.covenantId);
 
 console.log("MCP stdio (signing)");
 const c = new Client({ name: "e2e", version: "0" });
 await c.connect(new StdioClientTransport({ command: "node", args: [MCP], env }));
 const tools = (await c.listTools()).tools.map((t) => t.name);
 ok(!tools.some((n) => /pay|transfer/.test(n)), `no tool moves tokens (${tools.length} tools)`);
-const hc = JSON.parse((await c.callTool({ name: "how_to_connect", arguments: {} })).content[0].text);
-ok(hc.signing.includes(acct.address) && hc.agentIds.includes(reg.agentId), "how_to_connect sees the signer and its agent id");
+const hc = JSON.parse((await c.callTool({ name: "get_wallet", arguments: {} })).content[0].text);
+ok(hc.signing === true && hc.wallet === acct.address && hc.agentIds.includes(reg.agentId), "get_wallet sees the signer and its agent id");
 const mm = await c.callTool({ name: "mint_covenant", arguments: { type: "LOAN", ask: "Lend me 2 USDG for gas.", promise: "I'll repay 2.1 USDG within one day." } });
 const mr = JSON.parse(mm.content[0].text);
 ok(!mm.isError && mr.signed && mr.covenantId, `mint_covenant signed covenant ${mr.covenantId}`);
@@ -59,18 +61,20 @@ ok(res.success && /Minted covenant \d+/.test(said), `handler: "${said.trim()}"`)
 const prov = await kudoPlugin.providers[0].get(runtime, { content: {} }, {});
 ok(prov.text.includes(acct.address), "KUDO provider reports the signer");
 
-console.log("MCP unsigned → own wallet signs → send_signed_transaction");
+console.log("MCP unsigned → own wallet signs and sends");
 const envU = { ...env };
 delete envU.KUDO_PRIVATE_KEY;
 const u = new Client({ name: "e2e-unsigned", version: "0" });
 await u.connect(new StdioClientTransport({ command: "node", args: [MCP], env: envU }));
-const ur = JSON.parse((await u.callTool({ name: "link_proof", arguments: { id: mint.covenantId, proof: "https://ipfs.io/ipfs/bafylogo", from: acct.address } })).content[0].text);
-ok(ur.signed === false && ur.simulated.startsWith("ok"), "unsigned link_proof, dry-run ok as owner");
+const ur = JSON.parse((await u.callTool({ name: "set_promise_settlement_data", arguments: { id: mint.covenantId, proof: "https://ipfs.io/ipfs/bafylogo", from: acct.address } })).content[0].text);
+ok(ur.signed === false && ur.simulated.startsWith("ok"), "unsigned set_promise_settlement_data, dry-run ok as owner");
 const w = createWalletClient({ account: acct, chain: { ...robinhood, rpcUrls: { default: { http: [RPC] } } }, transport: http(RPC) });
 const t = ur.unsignedTransaction;
 const signed = await w.signTransaction(await w.prepareTransactionRequest({ to: t.to, data: t.data, value: BigInt(t.value) }));
-const br = JSON.parse((await u.callTool({ name: "send_signed_transaction", arguments: { serialized: signed } })).content[0].text);
-ok(br.status === "success", `broadcast ${br.hash.slice(0, 10)} succeeded`);
+const hash = await w.sendRawTransaction({ serializedTransaction: signed });
+const receipt = await sdk.publicClient.waitForTransactionReceipt({ hash });
+ok(receipt.status === "success", `own wallet sent ${hash.slice(0, 10)}`);
+ok(!(await u.listTools()).tools.some((x) => /send|broadcast/.test(x.name)), "no broadcast tool in unsigned mode");
 const cov = JSON.parse((await u.callTool({ name: "get_covenant", arguments: { id: mint.covenantId } })).content[0].text);
 ok(cov.promiseProof === "https://ipfs.io/ipfs/bafylogo", "proof is on chain");
 await u.close();

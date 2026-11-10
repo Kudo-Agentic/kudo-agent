@@ -28,7 +28,7 @@ import {
   type Provider,
   type State,
 } from "@elizaos/core";
-import type { Kudo } from "@kudo-dev/sdk";
+import { dstackAppId, type Kudo } from "@kudo-dev/sdk";
 import { kudoFromEnv, kudoFromEnvWithKeySource, kudoTools, runTool, toolJsonSchema, type KeySource, type KudoTool } from "@kudo-dev/tools";
 
 const SETTINGS = [
@@ -46,6 +46,8 @@ export interface KudoRuntimeState {
   agentId?: bigint;
   /** Where the signing key came from: KUDO_PRIVATE_KEY ("env") or the TEE ("dstack"). */
   keySource: "env" | "dstack";
+  /** The enclave's Phala app id, when the key came from dstack. */
+  teeId?: string;
 }
 
 interface KudoState extends KudoRuntimeState {
@@ -75,12 +77,17 @@ function kudoState(runtime: IAgentRuntime): Promise<KudoState> {
     const value = runtime.getSetting(key);
     if (value !== null && value !== undefined && String(value).trim()) env[key] = String(value);
   }
-  state = kudoFromEnvWithKeySource(env).then(({ kudo, agentId, keySource, warnings }) => {
+  state = kudoFromEnvWithKeySource(env).then(async ({ kudo, agentId, keySource, warnings }) => {
     for (const w of warnings) logger.warn(`[kudo] ${w}`);
+    // Inside a TEE the identity records the enclave's own app id. Only read it
+    // when the key itself came from dstack, so the two always describe the
+    // same enclave.
+    const teeId =
+      keySource === "dstack" ? await dstackAppId({ socket: env.KUDO_DSTACK_SOCKET?.trim() || undefined }) : undefined;
     const tools = new Map(
-      kudoTools({ kudo, defaultAgentId: agentId, mode: kudo.walletClient ? "sign" : "unsigned" }).map((t) => [t.name, t]),
+      kudoTools({ kudo, defaultAgentId: agentId, teeId, mode: kudo.walletClient ? "sign" : "unsigned" }).map((t) => [t.name, t]),
     );
-    return { kudo, agentId, keySource, tools };
+    return { kudo, agentId, keySource, teeId, tools };
   });
   // A failed build is not cached, so fixing a setting and retrying works.
   state.catch(() => states.delete(runtime));
@@ -90,30 +97,25 @@ function kudoState(runtime: IAgentRuntime): Promise<KudoState> {
 
 /** Eliza action names for each tool, and what a user might say instead. */
 const ACTIONS: Record<string, { name: string; similes: string[]; example: [string, string] }> = {
-  how_to_connect: {
-    name: "KUDO_STATUS",
-    similes: ["KUDO_HOW_TO_CONNECT", "KUDO_SETUP", "CHECK_KUDO"],
-    example: ["How do I get started on Kudo?", "Let me check your Kudo setup."],
+  get_wallet: {
+    name: "GET_KUDO_WALLET",
+    similes: ["GET_KUDO_ACCOUNT", "KUDO_STATUS", "KUDO_SETUP", "CHECK_KUDO", "FIND_KUDO_AGENT_IDS", "MY_AGENT_ID"],
+    example: ["What's your Kudo agent id, and can you sign?", "Checking my Kudo account."],
   },
-  register_agent: {
+  register: {
     name: "REGISTER_KUDO_AGENT",
     similes: ["REGISTER_AGENT", "CREATE_AGENT_IDENTITY", "ERC8004_REGISTER"],
     example: ["Register yourself on Kudo as 'Ada'.", "Registering an ERC-8004 identity named Ada."],
   },
-  find_agent_ids: {
-    name: "FIND_KUDO_AGENT_IDS",
-    similes: ["FIND_AGENT_ID", "MY_AGENT_ID"],
-    example: ["What's your Kudo agent id?", "Looking up the agent ids this wallet owns."],
+  set_metadata: {
+    name: "SET_KUDO_AGENT_METADATA",
+    similes: ["UPDATE_KUDO_AGENT", "UPDATE_AGENT_METADATA", "SET_TEE_ID", "UPDATE_KUDO_ENDPOINT"],
+    example: ["Update your Kudo endpoint to https://ada.example/agent.", "Updating the endpoint on my ERC-8004 identity."],
   },
-  list_open_asks: {
-    name: "LIST_OPEN_ASKS",
-    similes: ["FIND_KUDO_WORK", "OPEN_COVENANTS", "KUDO_JOBS"],
+  get_covenants_details: {
+    name: "GET_COVENANTS_DETAILS",
+    similes: ["LIST_COVENANTS", "MY_COVENANTS", "KUDO_COVENANTS", "FIND_KUDO_WORK", "LIST_OPEN_ASKS", "KUDO_JOBS"],
     example: ["Any open asks on Kudo you could take?", "Checking Kudo for open asks."],
-  },
-  list_covenants: {
-    name: "LIST_COVENANTS",
-    similes: ["MY_COVENANTS", "KUDO_COVENANTS"],
-    example: ["Show your recent covenants.", "Listing covenants."],
   },
   get_covenant: {
     name: "GET_COVENANT",
@@ -128,29 +130,24 @@ const ACTIONS: Record<string, { name: string; similes: string[]; example: [strin
       "Minting an INVOICE covenant for the explainer.",
     ],
   },
-  meet_ask: {
-    name: "MEET_ASK",
-    similes: ["TAKE_ASK", "CLAIM_COVENANT", "SETTLE_ASK"],
+  set_ask_settlement_data: {
+    name: "SET_ASK_SETTLEMENT_DATA",
+    similes: ["CLAIM_ASK", "MEET_ASK", "TAKE_ASK", "CLAIM_COVENANT", "SETTLE_ASK"],
     example: ["I published the report at https://ipfs.io/ipfs/bafy… for covenant 109, pay me at 0xabc…", "Recording that the ask of covenant 109 was met."],
   },
-  link_proof: {
-    name: "LINK_PROOF",
-    similes: ["PROVE_PROMISE", "SETTLE_PROMISE", "ATTEST_PROMISE"],
+  set_promise_settlement_data: {
+    name: "SET_PROMISE_SETTLEMENT_DATA",
+    similes: ["PROVE_PROMISE_KEPT", "LINK_PROOF", "PROVE_PROMISE", "SETTLE_PROMISE", "ATTEST_PROMISE"],
     example: ["You paid for covenant 108 in tx 0xe476…; link it.", "Linking the payment as proof for covenant 108."],
   },
-  watch_settlement: {
-    name: "WATCH_COVENANT",
-    similes: ["WATCH_SETTLEMENT", "WAIT_FOR_COVENANT"],
-    example: ["Tell me when covenant 109 moves.", "Watching covenant 109."],
-  },
-  agent_record: {
-    name: "KUDO_AGENT_RECORD",
-    similes: ["AGENT_REPUTATION", "KEPT_VS_BROKEN"],
+  get_agent: {
+    name: "GET_KUDO_AGENT",
+    similes: ["GET_KUDO_REPUTATION", "KUDO_AGENT_RECORD", "AGENT_REPUTATION", "KEPT_VS_BROKEN"],
     example: ["What's agent 20380's record?", "Reading agent 20380's covenant record."],
   },
 };
 
-/** What earlier actions in this same turn returned, so a chain like GET_COVENANT → LINK_PROOF can use it. */
+/** What earlier actions in this same turn returned, so a chain like GET_COVENANT → SET_PROMISE_SETTLEMENT_DATA can use it. */
 function earlierResults(options?: HandlerOptions): string {
   const previous = options?.actionContext?.previousResults ?? [];
   return previous
@@ -220,7 +217,7 @@ function toAction(tool: KudoTool): Action {
       }
       if (!out.ok) {
         logger.warn(`[kudo] ${tool.name} failed: ${out.error}`);
-        await callback?.({ text: `Kudo ${tool.name} failed: ${out.error}`, actions: [meta.name] });
+        await callback?.({ text: `Kudo ${meta.name} failed: ${elizaNames(out.error)}`, actions: [meta.name] });
         return { success: false, error: out.error, data: { args } };
       }
 
@@ -240,7 +237,10 @@ function toAction(tool: KudoTool): Action {
 
 /** Swaps the SDK's tool names in a hint for this plugin's action names. */
 function elizaNames(text: string): string {
-  return text.replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (tool) => ACTIONS[tool]?.name ?? tool);
+  // Tool names can be a single word (`register`), so match the known names
+  // exactly rather than anything snake_case.
+  const names = Object.keys(ACTIONS).sort((a, b) => b.length - a.length);
+  return text.replace(new RegExp(`\\b(${names.join("|")})\\b`, "g"), (tool) => ACTIONS[tool]!.name);
 }
 
 /** A short line for the chat; the full result is in the action's data. */
@@ -249,18 +249,18 @@ function summarize(tool: string, r: Record<string, unknown>, args: Record<string
   switch (tool) {
     case "mint_covenant":
       return r.signed ? `Minted covenant ${r.covenantId}. ${link}` : `Prepared the mint transaction; it needs to be signed.`;
-    case "register_agent":
+    case "register":
       return r.signed ? `Registered as agent ${r.agentId}. ${link}` : `Prepared the registration transaction; it needs to be signed.`;
-    case "meet_ask":
-      return r.signed ? `Met the ask of covenant ${args.id} with proof ${args.proof}. ${link}` : `Prepared the transaction; it needs to be signed.`;
-    case "link_proof":
-      return r.signed ? `Linked ${args.proof} as proof for covenant ${args.id}. ${link}` : `Prepared the transaction; it needs to be signed.`;
-    case "list_open_asks": {
-      const asks = (r.asks as { id: string; type: string; ask: string; promise: string }[]) ?? [];
-      return asks.length
-        ? `Open asks on Kudo:\n${asks.map((a) => `#${a.id} ${a.type}: ${a.ask} → ${a.promise}`).join("\n")}`
-        : "No open asks on Kudo right now.";
-    }
+    case "set_metadata":
+      return r.changed === false
+        ? String(r.note ?? "Nothing to change.")
+        : r.signed
+          ? `Updated ${args.key} on agent ${r.agentId}. ${link}`
+          : `Prepared the metadata transaction; it needs to be signed.`;
+    case "set_ask_settlement_data":
+      return r.signed ? `Claimed the ask of covenant ${args.id} with proof ${args.proof}. ${link}` : `Prepared the transaction; it needs to be signed.`;
+    case "set_promise_settlement_data":
+      return r.signed ? `Recorded ${args.proof} as proof the promise of covenant ${args.id} was kept. ${link}` : `Prepared the transaction; it needs to be signed.`;
     case "get_covenant":
       return [
         `Covenant ${r.id} (${r.type}) is ${r.stage}. Ask: ${r.ask} Promise: ${r.promise}`,
@@ -271,24 +271,25 @@ function summarize(tool: string, r: Record<string, unknown>, args: Record<string
       ]
         .filter(Boolean)
         .join("\n");
-    case "agent_record": {
+    case "get_agent": {
       const c = r.covenants as { kept: number; broken: number; open: number };
       return `${r.name ?? `Agent ${r.agentId}`}: ${c.kept} kept, ${c.broken} broken, ${c.open} open.`;
     }
-    case "find_agent_ids": {
+    case "get_covenants_details": {
+      const list = (r.covenants as { id: string; type: string; stage: string; ask: string; promise: string }[]) ?? [];
+      return list.length
+        ? `Covenants:\n${list.map((c) => `#${c.id} ${c.type} (${c.stage}): ${c.ask} → ${c.promise}`).join("\n")}`
+        : "No covenants found.";
+    }
+    case "get_wallet": {
       const ids = (r.agentIds as string[]) ?? [];
-      return ids.length ? `This wallet owns Kudo agent id${ids.length > 1 ? "s" : ""} ${ids.join(", ")}.` : "This wallet owns no Kudo agent id yet.";
+      return [
+        `Wallet ${r.wallet}${r.signing ? " (I sign for it)" : ""}, ${r.eth ?? "unknown"} ETH for gas.`,
+        ids.length
+          ? `It owns Kudo agent id${ids.length > 1 ? "s" : ""} ${ids.join(", ")}.`
+          : `It owns no Kudo agent id yet: register with ${ACTIONS.register!.name}.`,
+      ].join(" ");
     }
-    case "list_covenants": {
-      const list = (r.covenants as { id: string; type: string; stage: string; promise: string }[]) ?? [];
-      return list.length ? `Covenants:\n${list.map((c) => `#${c.id} ${c.type} (${c.stage}): ${c.promise}`).join("\n")}` : "No covenants found.";
-    }
-    case "watch_settlement": {
-      const c = r.covenant as { id: string; stage: string };
-      return r.changed ? `Covenant ${c.id} moved to ${c.stage}.` : `Covenant ${c.id} is still ${c.stage}.`;
-    }
-    case "how_to_connect":
-      return elizaNames(String(r.next ?? ""));
     default:
       return "```json\n" + JSON.stringify(r, null, 2).slice(0, 3000) + "\n```";
   }
@@ -325,7 +326,7 @@ function createKudoActions(runtimeTools?: KudoTool[]): Action[] {
   // the runtime's own client is resolved inside the handler.
   const tools =
     runtimeTools ??
-    kudoTools({ kudo: kudoFromEnv({}).kudo, mode: "sign" }).filter((t) => t.name !== "send_signed_transaction");
+    kudoTools({ kudo: kudoFromEnv({}).kudo, mode: "sign" });
   return tools.map(toAction);
 }
 

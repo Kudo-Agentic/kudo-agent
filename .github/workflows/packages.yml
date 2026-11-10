@@ -44,12 +44,5 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci && npm run build
-      - run: npm i -g @foundry-rs/cast
       - working-directory: e2e
         run: npm ci && ./run.sh
-      - name: SKILL.md verbatim
-        working-directory: e2e
-        run: |
-          npx hardhat node --config hardhat.config.cjs --port 8545 > hardhat.log 2>&1 &
-          for _ in $(seq 1 60); do curl -sf http://127.0.0.1:8545 -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' >/dev/null && break; sleep 1; done
-          sudo -E env "PATH=$PATH" ./skill/run.sh

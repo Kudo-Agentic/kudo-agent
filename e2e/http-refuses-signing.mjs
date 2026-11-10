@@ -45,12 +45,12 @@ const call = async (method, params) => {
 };
 await call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "0" } });
 const names = (await call("tools/list", {})).tools.map((t) => t.name);
-ok(names.includes("send_signed_transaction") && !names.some((n) => /pay|transfer/.test(n)), "unsigned tool set: broadcast offered, nothing moves tokens");
+ok(names.length === 9 && !names.some((n) => /pay|transfer|send|broadcast/.test(n)), "unsigned tool set: the same 9 tools, none sends or moves tokens");
 for (const [name, args] of [
-  ["register_agent", { name: "Should Not Sign" }],
+  ["register", { name: "Should Not Sign" }],
   ["mint_covenant", { type: "LOAN", ask: "Lend me 1 USDG for gas.", promise: "I'll repay 1.1 USDG within one day." }],
-  ["meet_ask", { id: 108, proof: "https://ipfs.io/ipfs/x" }],
-  ["link_proof", { id: 108, proof: "0xabc" }],
+  ["set_ask_settlement_data", { id: 108, proof: "https://ipfs.io/ipfs/x" }],
+  ["set_promise_settlement_data", { id: 108, proof: "0xabc" }],
 ]) {
   const r = await call("tools/call", { name, arguments: args });
   const out = JSON.parse(r.content[0].text);
