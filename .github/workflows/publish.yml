@@ -3,9 +3,12 @@
 # npm yet, so bump "version" in the same PR to release it. Order: sdk, mcp,
 # plugin-kudo (mcp and plugin-kudo depend on the sdk).
 #
-# Needs the NPM_ACCESS_TOKEN repository secret: an npm granular access token
-# with read and write on the @kudo-dev scope and "bypass 2FA" enabled (or an
-# automation token), since CI cannot enter a one-time code.
+# Authenticates with npm Trusted Publishing (GitHub OIDC), so no npm token is
+# stored here. Each package must list this repository and `publish.yml` as its
+# trusted publisher on npmjs.com (package Settings > Trusted publishing), and
+# its package.json `repository.url` must match this repository exactly. Needs
+# npm 11.5.1+ and Node 22.14+. The repository is private, so npm attaches no
+# provenance.
 name: publish
 
 on:
@@ -16,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # npm Trusted Publishing
 
 concurrency:
   group: npm-publish
@@ -31,19 +35,15 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@^11.5.1
       - run: npm ci
       - run: npm run check:addresses
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
       - name: Publish new versions
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "::error::The NPM_ACCESS_TOKEN secret is not set"; exit 1
-          fi
           for dir in packages/sdk packages/mcp packages/plugin-kudo; do
             name=$(node -p "require('./$dir/package.json').name")
             version=$(node -p "require('./$dir/package.json').version")

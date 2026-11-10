@@ -44,7 +44,8 @@ cd e2e && npm ci && ./run.sh            # signed e2e on a local mainnet fork
 
 Publish order: sdk, mcp, plugin-kudo. `.github/workflows/publish.yml`
 publishes on merge to `main` any package whose `version` is not on npm yet,
-so bump `version` to release. The e2e suites in `e2e/` are described
+so bump `version` to release. It authenticates with npm Trusted Publishing
+(no token); each package's `repository.url` must match this repository. The e2e suites in `e2e/` are described
 in `e2e/README.md`.
 
 ## Architecture
