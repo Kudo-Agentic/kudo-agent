@@ -86,3 +86,14 @@ describe("the library", () => {
     expect(source).not.toMatch(/claude-agent-sdk/);
   });
 });
+
+describe("logging", () => {
+  it("never writes a secret, with or without its 0x prefix", async () => {
+    const { redact } = await import("../src/agent/log.js");
+    const key = "0x" + "ab".repeat(32);
+    const env = { PRIVATE_KEY: key, ANTHROPIC_API_KEY: "sk-ant-secret-value" };
+    expect(redact(`cast wallet address --private-key ${key}`, env)).toBe("cast wallet address --private-key [PRIVATE_KEY]");
+    expect(redact(`key ${key.slice(2)} and sk-ant-secret-value`, env)).toBe("key [PRIVATE_KEY] and [ANTHROPIC_API_KEY]");
+    expect(redact("nothing secret here", {})).toBe("nothing secret here");
+  });
+});

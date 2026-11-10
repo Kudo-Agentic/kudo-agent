@@ -10,9 +10,11 @@ import {
   query,
   type Options,
   type SDKAssistantMessage,
+  type SDKMessage,
   type SDKResultMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 
+import { clip, limits, runLog, type RunLog } from "./log.js";
 import type { SkillPlugin } from "./skills.js";
 
 /** What one agent runs with, fixed at startup. */
@@ -35,7 +37,7 @@ const RESILIENCE_ENV = {
   CLAUDE_STREAM_IDLE_TIMEOUT_MS: "300000",
 };
 
-function agentOptions(session: AgentSession): Options {
+function agentOptions(session: AgentSession, log: RunLog): Options {
   return {
     model: session.model,
     systemPrompt: session.systemPrompt,
@@ -93,6 +95,11 @@ function agentOptions(session: AgentSession): Options {
     maxTurns: 40,
 
     env: { ...process.env, ...RESILIENCE_ENV },
+
+    // Claude Code's own diagnostics: API errors, retries, a failed plugin load.
+    stderr: (data) => {
+      for (const line of data.split("\n")) if (line.trim()) log.error(`stderr: ${clip(line, limits.MAX_OUTPUT)}`);
+    },
   };
 }
 
@@ -106,29 +113,99 @@ function proseOf(message: SDKAssistantMessage): string {
 
 export class AgentRunError extends Error {}
 
-function assertSucceeded(result: SDKResultMessage): void {
-  if (result.subtype !== "success") {
-    throw new AgentRunError(`Agent run ended: ${result.subtype}`);
+/** The text of a tool result, which the SDK gives as a string or as content blocks. */
+function resultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((block) => (block && typeof block === "object" && "text" in block ? String(block.text) : ""))
+    .join("");
+}
+
+/**
+ * Logs one message from the run: each command or skill the agent starts, the
+ * output of any that fails, and (at debug) everything else.
+ */
+function logMessage(message: SDKMessage, log: RunLog, commands: Map<string, string>): void {
+  if (message.type === "system" && message.subtype === "init") {
+    log.debug(`session ${message.session_id}, model ${message.model}, tools ${message.tools.join(", ")}`);
+    return;
   }
+
+  if (message.type === "assistant") {
+    for (const block of message.message.content) {
+      if (block.type === "text" && block.text.trim()) log.debug(`says: ${clip(block.text, limits.MAX_OUTPUT)}`);
+      if (block.type !== "tool_use") continue;
+      const input = (block.input ?? {}) as Record<string, unknown>;
+      const what =
+        block.name === "Bash"
+          ? `$ ${clip(String(input.command ?? ""), limits.MAX_COMMAND)}`
+          : block.name === "Skill"
+            ? `skill ${String(input.skill ?? input.command ?? "")}`
+            : `${block.name} ${clip(JSON.stringify(input), limits.MAX_COMMAND)}`;
+      commands.set(block.id, what);
+      log.info(what);
+    }
+    return;
+  }
+
+  if (message.type === "user" && Array.isArray(message.message.content)) {
+    for (const block of message.message.content) {
+      if (typeof block !== "object" || block.type !== "tool_result") continue;
+      const output = clip(resultText(block.content), limits.MAX_OUTPUT);
+      const what = commands.get(block.tool_use_id) ?? block.tool_use_id;
+      if (block.is_error) log.error(`failed: ${what}\n${output}`);
+      else log.debug(`output of ${what}\n${output}`);
+    }
+  }
+}
+
+/** The run's closing line, and an error for anything but success. */
+function finish(result: SDKResultMessage, log: RunLog): AgentRunError | undefined {
+  const stats = `${(result.duration_ms / 1000).toFixed(1)}s, ${result.num_turns} turns, $${result.total_cost_usd.toFixed(4)}`;
+  for (const denial of result.permission_denials ?? []) {
+    log.error(`denied tool ${denial.tool_name}: ${clip(JSON.stringify(denial.tool_input), limits.MAX_COMMAND)}`);
+  }
+  if (result.subtype === "success") {
+    log.info(`done (${stats})`);
+    return undefined;
+  }
+  const errors = result.errors?.length ? `: ${result.errors.join("; ")}` : "";
+  log.error(`ended ${result.subtype} (${stats})${errors}`);
+  return new AgentRunError(`Agent run ended: ${result.subtype}${errors}`);
 }
 
 /**
  * Runs one task to completion and returns everything the agent said.
+ * `label` names what started it (a job's name, or `message`) in the log.
  *
  * Throws AgentRunError if the run did not finish — callers decide whether that
  * is a 500 or a logged line.
  */
-export async function runAgent(prompt: string, session: AgentSession): Promise<string> {
-  const options = agentOptions(session);
+export async function runAgent(prompt: string, session: AgentSession, label = "run"): Promise<string> {
+  const log = runLog(label);
+  const options = agentOptions(session, log);
   const said: string[] = [];
+  const commands = new Map<string, string>();
 
-  for await (const message of query({ prompt, options })) {
-    if (message.type === "assistant") said.push(proseOf(message));
-    if (message.type === "result") {
-      assertSucceeded(message);
-      return said.join("").trim();
+  log.info(`started: ${clip(prompt.split("\n")[0] ?? "", 120)}`);
+  try {
+    for await (const message of query({ prompt, options })) {
+      logMessage(message, log, commands);
+      if (message.type === "assistant") said.push(proseOf(message));
+      if (message.type === "result") {
+        const error = finish(message, log);
+        if (error) throw error;
+        return said.join("").trim();
+      }
     }
+  } catch (error) {
+    if (!(error instanceof AgentRunError)) {
+      log.error(`crashed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
+    }
+    throw error;
   }
 
+  log.error("ended without a result");
   throw new AgentRunError("Agent run ended without a result.");
 }

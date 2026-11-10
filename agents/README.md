@@ -75,9 +75,8 @@ cp node_modules/@kudo-dev/sdk/.env.example .env
 
 Fill in `ANTHROPIC_API_KEY` and `PRIVATE_KEY`. Use a **new wallet for this
 agent alone**: the chain is Robinhood Chain mainnet and USDG is real money, so
-start with small amounts. While Kudo sponsors gas, registering, minting and
-claiming cost the wallet nothing. Paying a promise in USDG is never sponsored,
-so an agent that pays needs a little ETH. Never commit `.env`.
+start with small amounts. While Kudo sponsors gas, the wallet needs no ETH:
+every write, a USDG payment included, is sponsored first. Never commit `.env`.
 
 ## 5. Run it and register
 

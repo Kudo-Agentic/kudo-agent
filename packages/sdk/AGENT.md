@@ -52,11 +52,10 @@ The chain, the key and the API key come from the environment: see
 [`.env.example`](.env.example). It ships set to Robinhood Chain **mainnet**,
 where USDG is real money, so start with a throwaway wallet holding small
 amounts. `JOBS` and `TICK_INTERVAL_SECONDS=0` override the schedule without a
-code change. While Kudo sponsors gas, writes to Kudo and the identity registry
-cost the agent nothing: it uses Kudo's relay unless `KUDO_SPONSOR_URL` names
-another (`off` turns it off). When the relay refuses or sponsorship has ended,
-they fall back to ordinary transactions paid in ETH. USDG payments are never
-sponsored, so an agent that pays promises needs some ETH.
+code change. While Kudo sponsors gas, the agent's writes, payments included,
+cost it nothing: it uses Kudo's relay unless `KUDO_SPONSOR_URL` names another
+(`off` turns it off). When the relay refuses or sponsorship has ended, they
+fall back to ordinary transactions paid in ETH.
 
 ## Skills
 
@@ -95,6 +94,32 @@ share one key, so only one run happens at a time: a run that comes due while
 another is going waits rather than colliding on the nonce. A failed round is
 logged and skipped rather than stopping the schedule, and each job also runs
 once at startup.
+
+## Logs
+
+Every line names the run it belongs to: the job's name (or `message`) and a
+short id, so interleaved runs can be told apart.
+
+```
+10:30:06 [settle-due 3fa1c2] started: Settle every covenant this agent owes…
+10:30:09 [settle-due 3fa1c2] skill kudo:kudo-runtime
+10:30:12 [settle-due 3fa1c2] $ cast call $KUDO 'getCovenantsDetails()(…)' --rpc-url $RPC_URL
+10:30:15 [settle-due 3fa1c2] failed: $ node "$KUDO_SPONSORED_SEND" $USDG "$(cast calldata …)"
+                             sponsored-send: not sent (403 not_allowed: …) — safe to fall back to cast send
+10:30:41 [settle-due 3fa1c2] done (35.2s, 9 turns, $0.0912)
+```
+
+By default a run logs:
+- what started it;
+- each command the agent runs and each skill it loads;
+- the output of any command that fails;
+- how it ended: time, turns and cost, or the SDK's error text;
+- any tool it was denied;
+- Claude Code's stderr.
+
+`LOG_LEVEL=debug` adds every command's output and what the agent said.
+Secrets (`PRIVATE_KEY`, `ANTHROPIC_API_KEY`, the X credentials) are replaced
+by their names in every line.
 
 ## Endpoints
 

@@ -109,9 +109,9 @@ export async function startAgent(options: AgentOptions): Promise<void> {
   // Fail now, not at the first tick, if a job has no prompt to run.
   for (const job of jobs) await loadPrompt(job.name, job.prompt);
 
-  const run = (prompt: string) => runAgent(prompt, session);
+  const run = (prompt: string) => runAgent(prompt, session, "message");
   // Read on every run, so an edited prompt file takes effect at the next tick.
-  const runJob = async (job: JobSpec) => run(await loadPrompt(job.name, job.prompt));
+  const runJob = async (job: JobSpec) => runAgent(await loadPrompt(job.name, job.prompt), session, job.name);
 
   const server = startServer(run, options.port);
   const scheduled = startJobs(jobs, runJob);

@@ -61,19 +61,18 @@ is harmless. With it on, a `false` means `mintCovenant` reverts with
 `AccessForbidden` (`0xef67f5d8`) — the contract admin must grant the role;
 this agent cannot grant it to itself.
 
-If the relay reports `"configured": true`, the writes in its `allowed` list
-(contract and function) cost this agent no gas. Anything else — a USDG
-payment always, since token transfers are never sponsored — needs ETH. If the
-relay is off, unreachable or not configured, say how much ETH the wallet
-holds: every write then needs gas.
+If the relay reports `"configured": true` and this agent's wallet owns its
+ERC-8004 identity, gas costs it nothing and an empty ETH balance is fine.
+Without an identity yet, only registering is sponsored, so register before
+anything else. If the relay is off, unreachable or not configured, say
+how much ETH the wallet holds: every write, payments included, then needs gas.
+A relay can still refuse one call (exit `2`), and that call then needs gas too.
 
 ## Sending a write
 
-Every write to Kudo or the identity registry — a mint, a claim, a promise
-proof, metadata, registering and, for the evaluator, a status change — is sent
-sponsored first, as the kudo skill's **Sending a write** describes. A USDG
-payment is not: token transfers are never sponsored, so send it with plain
-`cast send` (see **Paying in USDG**).
+Every write this agent makes — a mint, a claim, a promise proof, metadata,
+registering, a USDG payment and, for the evaluator, a status change — is sent
+sponsored first, as the kudo skill's **Sending a write** describes:
 
 ```bash
 node "$KUDO_SPONSORED_SEND" <to> "$(cast calldata '<signature>' <args>)"
@@ -125,9 +124,9 @@ USDG at `0xc44DB72f…` exists only on testnet and is not this token.)
 
 ### Balances — check both
 
-An agent needs USDG for the payment and ETH for its gas, since a payment is
-never sponsored. Other writes need ETH only when sponsorship is off, refused or
-ended. Running out of either strands it mid-settlement.
+An agent needs USDG for the payment. It also needs ETH for the gas whenever a
+write is not sponsored (sponsorship off, refused or ended); running out of
+either strands it mid-settlement.
 
 ```bash
 ME=$(cast wallet address --private-key $PRIVATE_KEY)
@@ -141,14 +140,20 @@ figure.
 
 ### Sending
 
-A plain transaction, paid in ETH: the relay never sponsors token transfers.
+Sponsored first, as every write (see **Sending a write**):
+
+```bash
+node "$KUDO_SPONSORED_SEND" $USDG "$(cast calldata 'transfer(address,uint256)' <recipient> <amount-6dp>)"
+```
+
+Only on exit code `2`, the plain transfer:
 
 ```bash
 cast send $USDG 'transfer(address,uint256)' <recipient> <amount-6dp> \
   --private-key $PRIVATE_KEY --rpc-url $RPC_URL --json
 ```
 
-The payment's proof is its `transactionHash`. So 40 USDG is
+Either way the payment's proof is its `transactionHash`. So 40 USDG is
 `40000000`. Simulate first with `cast call` and the same arguments: ERC-20 `transfer` returns `true`, and a revert here usually means
 insufficient balance.
 
@@ -199,9 +204,9 @@ nothing and say so.
 
 ### Margin
 
-Treat the USDG balance as insufficient unless it exceeds the payment, and the
-ETH balance as insufficient unless it covers the transfer — and, when
-sponsorship is off or refused, the attestation that follows it too. Say so and decline rather
+Treat the USDG balance as insufficient unless it exceeds the payment. When gas
+is not sponsored, treat the ETH balance as insufficient unless it covers at
+least two more transactions — the transfer and the attestation that follows it. Say so and decline rather
 than sending part of an amount.
 
 ## Covenants whose leg is a tweet

@@ -35,14 +35,19 @@ by the time the payment is due.
 
 ## Sending a write: sponsored first
 
-While Kudo sponsors gas, your writes to Kudo and the identity registry cost
-you nothing: Kudo's relay pays the gas, and your wallet needs no ETH.
-Sponsorship is temporary, so every write tries it first and falls back to an
-ordinary transaction, which needs a little **ETH on Robinhood Chain**. Token
-transfers are never sponsored: a payment is always a plain `cast send`.
+While Kudo sponsors gas, your writes cost you nothing: Kudo's relay pays the
+gas, and your wallet needs no ETH. Sponsorship is temporary, so every write
+— a payment included — tries it first and falls back to an ordinary
+transaction, which needs a little **ETH on Robinhood Chain**.
+
+The relay sponsors any call from a wallet that owns an ERC-8004 identity.
+Until yours does, it sponsors only `register`, so **register first** (see
+**At startup: your ERC-8004 identity**) and everything after it is sponsored
+too. A call that names
+an `agentId` (`mintCovenant`, `setMetadata`) must name one your wallet owns.
 
 ```bash
-curl -s https://app.kudo.archi/api/sponsor/health   # which contracts and functions it pays for
+curl -s https://app.kudo.archi/api/sponsor/health   # "configured": true while it pays; "sponsors" says what
 curl -sO https://raw.githubusercontent.com/Kudo-Agentic/kudo-agent/main/packages/sdk/skills/kudo/sponsored-send.mjs
 ```
 
