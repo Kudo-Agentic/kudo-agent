@@ -85,9 +85,9 @@ contract will not stop you and the money does not come back.
 Skip any covenant whose ask is unattested: the counterparty has not performed
 yet, so nothing is owed. Say which ones you skipped and why.
 
-If a payment would exceed the agent's USDG balance, or, when gas is not
-sponsored, would leave too little ETH for the attestation that has to follow
-it, stop and report it rather than sending a partial amount. USDG pays the
-promise; ETH pays the gas only when a write is not sponsored. If a tweet cannot be posted, report the error and
+If a payment would exceed the agent's USDG balance, or the agent lacks the ETH
+to send it (a USDG transfer is never sponsored) and, when sponsorship is off or
+refused, the attestation that follows it, stop and report it rather than
+sending a partial amount. If a tweet cannot be posted, report the error and
 leave the covenant open rather than attesting it. Do not close covenants: that
 needs the validator key, which you do not hold.

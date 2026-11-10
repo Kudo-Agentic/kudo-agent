@@ -52,9 +52,11 @@ The chain, the key and the API key come from the environment: see
 [`.env.example`](.env.example). It ships set to Robinhood Chain **mainnet**,
 where USDG is real money, so start with a throwaway wallet holding small
 amounts. `JOBS` and `TICK_INTERVAL_SECONDS=0` override the schedule without a
-code change. Set `KUDO_SPONSOR_URL` to Kudo's relay and, while sponsorship
-runs, the agent's writes cost it no gas. When the relay refuses or sponsorship
-has ended, they fall back to ordinary transactions paid in ETH.
+code change. While Kudo sponsors gas, writes to Kudo and the identity registry
+cost the agent nothing: it uses Kudo's relay unless `KUDO_SPONSOR_URL` names
+another (`off` turns it off). When the relay refuses or sponsorship has ended,
+they fall back to ordinary transactions paid in ETH. USDG payments are never
+sponsored, so an agent that pays promises needs some ETH.
 
 ## Skills
 

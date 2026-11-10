@@ -27,7 +27,7 @@ No private key ever appears in output — always pass it as
 | `TEE_ID` | Phala app id of the enclave this agent runs in |
 | `TEE_TRUST_URL` | that app's Phala Trust Center report |
 | `TEE_ID_SOURCE` | `dstack` if the enclave reported its own id, else `environment` |
-| `KUDO_SPONSOR_URL` | Kudo's gas-sponsorship relay; unset when gas is not sponsored |
+| `KUDO_SPONSOR_URL` | the gas-sponsorship relay. Empty means Kudo's, `https://app.kudo.archi/api/sponsor`; `off` means none |
 | `KUDO_SPONSORED_SEND` | absolute path to the kudo skill's `sponsored-send.mjs` |
 
 Tweeting uses its own credentials — see the **twitter** skill.
@@ -47,7 +47,7 @@ and stop rather than guessing.
 
 ```bash
 cast chain-id --rpc-url $RPC_URL
-[ -n "$KUDO_SPONSOR_URL" ] && curl -s $KUDO_SPONSOR_URL/health   # sponsored? until when?
+[ "$KUDO_SPONSOR_URL" != off ] && curl -s ${KUDO_SPONSOR_URL:-https://app.kudo.archi/api/sponsor}/health
 cast balance $(cast wallet address --private-key $PRIVATE_KEY) --rpc-url $RPC_URL
 cast call $KUDO "hasRole(bytes32,address)(bool)" \
   0xcab5a0bfe0b79d2c4b1c2e02599fa044d115b7511f9659307cb4276950967709 \
@@ -61,16 +61,19 @@ is harmless. With it on, a `false` means `mintCovenant` reverts with
 `AccessForbidden` (`0xef67f5d8`) — the contract admin must grant the role;
 this agent cannot grant it to itself.
 
-If the relay reports `sponsored: true`, gas costs this agent nothing and an
-empty ETH balance is fine. If it is not set, unreachable, or `endsAt` is close,
-say how much ETH the wallet holds: once sponsorship ends every write, payments
-included, needs gas.
+If the relay reports `"configured": true`, the writes in its `allowed` list
+(contract and function) cost this agent no gas. Anything else — a USDG
+payment always, since token transfers are never sponsored — needs ETH. If the
+relay is off, unreachable or not configured, say how much ETH the wallet
+holds: every write then needs gas.
 
 ## Sending a write
 
-Every write this agent makes — a mint, a claim, a promise proof, metadata, a
-USDG payment and, for the evaluator, a status change — is sent sponsored first,
-as the kudo skill's **Sending a write** describes:
+Every write to Kudo or the identity registry — a mint, a claim, a promise
+proof, metadata, registering and, for the evaluator, a status change — is sent
+sponsored first, as the kudo skill's **Sending a write** describes. A USDG
+payment is not: token transfers are never sponsored, so send it with plain
+`cast send` (see **Paying in USDG**).
 
 ```bash
 node "$KUDO_SPONSORED_SEND" <to> "$(cast calldata '<signature>' <args>)"
@@ -122,9 +125,9 @@ USDG at `0xc44DB72f…` exists only on testnet and is not this token.)
 
 ### Balances — check both
 
-An agent needs USDG for the payment. It also needs ETH for the gas whenever a
-write is not sponsored (`KUDO_SPONSOR_URL` unset, or sponsorship refused or
-ended); running out of either strands it mid-settlement.
+An agent needs USDG for the payment and ETH for its gas, since a payment is
+never sponsored. Other writes need ETH only when sponsorship is off, refused or
+ended. Running out of either strands it mid-settlement.
 
 ```bash
 ME=$(cast wallet address --private-key $PRIVATE_KEY)
@@ -138,20 +141,14 @@ figure.
 
 ### Sending
 
-Sponsored first, as every write (see **Sending a write**):
-
-```bash
-node "$KUDO_SPONSORED_SEND" $USDG "$(cast calldata 'transfer(address,uint256)' <recipient> <amount-6dp>)"
-```
-
-Only on exit code `2`, the plain transfer:
+A plain transaction, paid in ETH: the relay never sponsors token transfers.
 
 ```bash
 cast send $USDG 'transfer(address,uint256)' <recipient> <amount-6dp> \
   --private-key $PRIVATE_KEY --rpc-url $RPC_URL --json
 ```
 
-Either way the payment's proof is its `transactionHash`. So 40 USDG is
+The payment's proof is its `transactionHash`. So 40 USDG is
 `40000000`. Simulate first with `cast call` and the same arguments: ERC-20 `transfer` returns `true`, and a revert here usually means
 insufficient balance.
 
@@ -202,9 +199,9 @@ nothing and say so.
 
 ### Margin
 
-Treat the USDG balance as insufficient unless it exceeds the payment. When gas
-is not sponsored, treat the ETH balance as insufficient unless it covers at
-least two more transactions — the transfer and the attestation that follows it. Say so and decline rather
+Treat the USDG balance as insufficient unless it exceeds the payment, and the
+ETH balance as insufficient unless it covers the transfer — and, when
+sponsorship is off or refused, the attestation that follows it too. Say so and decline rather
 than sending part of an amount.
 
 ## Covenants whose leg is a tweet

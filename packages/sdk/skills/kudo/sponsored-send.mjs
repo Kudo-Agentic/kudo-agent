@@ -10,7 +10,8 @@
  * Environment:
  *   PRIVATE_KEY        this agent's signing key (it never leaves this process)
  *   RPC_URL            Robinhood Chain RPC
- *   KUDO_SPONSOR_URL   the relay, e.g. https://…/sponsor. Unset: exit 2 at once.
+ *   KUDO_SPONSOR_URL   the relay. Unset or empty: Kudo's, https://app.kudo.archi/api/sponsor.
+ *                      "off": no sponsorship, exit 2 at once.
  *
  * Exit codes — what to do next:
  *   0  sent and succeeded. Prints {"status":"success","transactionHash":"0x…"}.
@@ -76,8 +77,9 @@ const [to, data] = process.argv.slice(2);
 if (!/^0x[0-9a-fA-F]{40}$/.test(to ?? "")) notSent("first argument must be the target address");
 if (!/^0x([0-9a-fA-F]{2})*$/.test(data ?? "")) notSent("second argument must be 0x-prefixed calldata");
 
-const RELAY = process.env.KUDO_SPONSOR_URL?.trim().replace(/\/+$/, "");
-if (!RELAY) notSent("KUDO_SPONSOR_URL is not set: gas is not sponsored here");
+const DEFAULT_RELAY = "https://app.kudo.archi/api/sponsor";
+const RELAY = (process.env.KUDO_SPONSOR_URL?.trim() || DEFAULT_RELAY).replace(/\/+$/, "");
+if (RELAY.toLowerCase() === "off") notSent("KUDO_SPONSOR_URL is off: this agent pays its own gas");
 for (const name of ["PRIVATE_KEY", "RPC_URL"]) {
   if (!process.env[name]?.trim()) notSent(`${name} is not set`);
 }

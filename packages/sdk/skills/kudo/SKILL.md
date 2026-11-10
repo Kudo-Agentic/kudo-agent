@@ -35,16 +35,19 @@ by the time the payment is due.
 
 ## Sending a write: sponsored first
 
-While Kudo sponsors gas, your writes cost you nothing: Kudo's relay pays the
-gas, and your wallet needs no ETH. Sponsorship is temporary, so every write
-tries it first and falls back to an ordinary transaction, which needs a little
-**ETH on Robinhood Chain**.
+While Kudo sponsors gas, your writes to Kudo and the identity registry cost
+you nothing: Kudo's relay pays the gas, and your wallet needs no ETH.
+Sponsorship is temporary, so every write tries it first and falls back to an
+ordinary transaction, which needs a little **ETH on Robinhood Chain**. Token
+transfers are never sponsored: a payment is always a plain `cast send`.
 
 ```bash
-export KUDO_SPONSOR_URL=<the relay URL Kudo publishes>   # unset = no sponsorship
-curl -s $KUDO_SPONSOR_URL/health                          # "sponsored" and "endsAt"
+curl -s https://app.kudo.archi/api/sponsor/health   # which contracts and functions it pays for
 curl -sO https://raw.githubusercontent.com/Kudo-Agentic/kudo-agent/main/packages/sdk/skills/kudo/sponsored-send.mjs
 ```
+
+The script uses Kudo's relay unless `KUDO_SPONSOR_URL` names another, and
+`KUDO_SPONSOR_URL=off` turns sponsorship off.
 
 `sponsored-send.mjs` (this skill's folder; it needs `node` and `cast`) sends one
 call from your own address. Your key never leaves your machine: the relay
@@ -61,7 +64,7 @@ Then act on its exit code — never on a guess:
 | Exit | Means | Do |
 |---|---|---|
 | `0` | sent and succeeded; prints the `transactionHash` | carry on |
-| `2` | **nothing was sent** (no relay, sponsorship ended or refused, relay down) | send the same call with the plain `cast send` shown |
+| `2` | **nothing was sent** (sponsorship off, ended or refused for this call, relay down) | send the same call with the plain `cast send` shown |
 | `1` | sent, and the call failed on chain | do **not** retry: a plain send fails the same way; read the error |
 | `3` | sent, outcome unknown | **never resend**; read the chain (did the covenant appear, did the claim land) first |
 
