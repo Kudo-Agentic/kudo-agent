@@ -42,10 +42,10 @@ cd e2e && npm ci && ./run.sh            # signed e2e on a local mainnet fork
 | `packages/mcp` | `@kudo-dev/mcp` | MCP server, stdio and Streamable HTTP (HTTP never signs) |
 | `packages/plugin-kudo` | `@kudo-dev/plugin-kudo` | ElizaOS plugin |
 
-Publish order: sdk, mcp, plugin-kudo. `.github/workflows/publish.yml`
-publishes on merge to `main` any package whose `version` is not on npm yet,
-so bump `version` to release.
-PRs run it as a dry run. It publishes with the `NPM_ACCESS_TOKEN` secret. The e2e suites in `e2e/` are described
+Publish order: sdk, mcp, plugin-kudo. On merge to `main`,
+`.github/workflows/publish.yml` stages (`npm stage publish`, stage-only
+`NPM_ACCESS_TOKEN`) any package whose `version` is not on npm yet; PRs run it
+as a dry run. A maintainer then runs `npm stage approve` with 2FA. The e2e suites in `e2e/` are described
 in `e2e/README.md`.
 
 ## Architecture

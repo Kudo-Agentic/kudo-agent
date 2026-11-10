@@ -1,14 +1,19 @@
-# Stages and publishes the public packages to npm.
+# Stages new versions of the public packages on npm. Nothing goes public
+# until a maintainer approves it with 2FA.
 #
-# On a pull request: builds, tests and runs `npm publish --dry-run` for every
-# package whose version is not on npm yet, so the run shows what a merge will
-# publish. On a merge to main: does the same and publishes for real.
+# On a pull request: builds, tests and runs `npm stage publish --dry-run` for
+# every package whose version is not on npm yet, so the run shows what the
+# merge will stage. On a merge to main: does the same and stages for real.
+#
+# Then approve each staged version (needs npm 12+ and your 2FA code):
+#   npm stage list @kudo-dev/sdk
+#   npm stage approve <stage-id>
 #
 # Bump "version" in a package.json to release it. Order: sdk, mcp,
-# plugin-kudo (mcp and plugin-kudo depend on the sdk).
+# plugin-kudo (mcp and plugin-kudo depend on the sdk, so approve the sdk first).
 #
-# Publishing needs the NPM_ACCESS_TOKEN repository secret: an npm access token
-# that can publish to @kudo-dev without a 2FA code.
+# Staging needs the NPM_ACCESS_TOKEN repository secret: an npm granular access
+# token with "Read and write (stage only)" on @kudo-dev.
 name: publish
 
 on:
@@ -23,11 +28,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  group: npm-stage-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  stage:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,18 +46,22 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
-      - name: ${{ github.ref == 'refs/heads/main' && 'Publish new versions' || 'Stage new versions (dry run)' }}
+      # `npm stage` arrived in npm 12. Installed after the build so the build
+      # and tests run on the npm that ships with Node.
+      - run: npm install -g npm@12
+      - name: ${{ github.ref == 'refs/heads/main' && 'Stage new versions' || 'Stage new versions (dry run)' }}
         env:
           NODE_AUTH_TOKEN: ${{ github.ref == 'refs/heads/main' && secrets.NPM_ACCESS_TOKEN || '' }}
           DRY_RUN: ${{ github.ref == 'refs/heads/main' && 'false' || 'true' }}
         run: |
           set -euo pipefail
+          npm --version
           if [ "$DRY_RUN" = false ] && [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "::error::The NPM_ACCESS_TOKEN secret is not set"; exit 1
           fi
           flags="--access public"
           [ "$DRY_RUN" = true ] && flags="$flags --dry-run"
-          echo "### npm ($([ "$DRY_RUN" = true ] && echo 'dry run' || echo 'published'))" >> "$GITHUB_STEP_SUMMARY"
+          echo "### npm stage ($([ "$DRY_RUN" = true ] && echo 'dry run' || echo 'staged'))" >> "$GITHUB_STEP_SUMMARY"
           for dir in packages/sdk packages/mcp packages/plugin-kudo; do
             name=$(node -p "require('./$dir/package.json').name")
             version=$(node -p "require('./$dir/package.json').version")
@@ -65,7 +74,16 @@ jobs:
             elif ! grep -q E404 <<<"$out"; then
               echo "$out"; echo "::error::Could not look up $name on npm"; exit 1
             fi
-            echo "npm publish $dir $flags"
-            npm publish -w "$dir" $flags
-            echo "- \`$name@$version\`" >> "$GITHUB_STEP_SUMMARY"
+            # npm stage ignores workspaces, so run it inside the package folder.
+            echo "npm stage publish ($dir) $flags"
+            if out=$(cd "$dir" && npm stage publish $flags 2>&1); then
+              echo "$out"
+              echo "- \`$name@$version\`" >> "$GITHUB_STEP_SUMMARY"
+            elif grep -q -i -E "E409|conflict|already (been )?staged|cannot publish over" <<<"$out"; then
+              echo "$out"
+              echo "$name@$version is already staged, skipping"
+              echo "- \`$name@$version\`: already staged" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "$out"; echo "::error::Could not stage $name@$version"; exit 1
+            fi
           done

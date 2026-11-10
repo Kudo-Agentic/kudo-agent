@@ -32,16 +32,16 @@ npm run check:addresses               # skills and packages name only current co
 (cd e2e && npm install && npm test)   # signed end-to-end run on a local mainnet fork
 ```
 
-Merging to `main` publishes automatically (`.github/workflows/publish.yml`):
-every package whose `version` is not on npm yet goes out, in order, since the
-other two depend on the SDK. A PR shows what it would publish (a dry run);
-the merge publishes. Bump `version` in the PR to release. By hand, with your
-2FA code:
+Merging to `main` stages new versions on npm (`.github/workflows/publish.yml`):
+every package whose `version` is not on npm yet is staged with
+`npm stage publish`, in order, since the other two depend on the SDK. A PR
+shows what it would stage (a dry run). Bump `version` in the PR to release.
+Staged versions stay private until a maintainer approves them with 2FA
+(npm 12+), SDK first:
 
 ```bash
-npm publish --access public -w @kudo-dev/sdk
-npm publish --access public -w @kudo-dev/mcp
-npm publish --access public -w @kudo-dev/plugin-kudo
+npm stage list @kudo-dev/sdk
+npm stage approve <stage-id>
 ```
 
 `skills/kudo/SKILL.md` is the only copy of the skill: app.kudo.archi/connect
