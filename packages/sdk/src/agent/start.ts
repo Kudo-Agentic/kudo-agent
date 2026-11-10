@@ -8,7 +8,7 @@
  *
  *   SHUTDOWN_GRACE_SECONDS   how long a run may finish in on shutdown (default 120)
  */
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runAgent, type AgentSession } from "./agent.js";
@@ -16,6 +16,7 @@ import { requireEnvironment, warnIfTwitterIncomplete, warnIfUnregistered } from 
 import { resolveJobs, startJobs } from "./jobs.js";
 import { loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
 import { startServer } from "./server/index.js";
+import { SKILLS_DIR } from "./paths.js";
 import { assembleSkills, type SkillRef } from "./skills.js";
 import { resolveTeeIdentity } from "./tee.js";
 
@@ -95,6 +96,8 @@ export async function startAgent(options: AgentOptions): Promise<void> {
   warnIfTwitterIncomplete();
   warnIfUnregistered();
   await announceTee();
+  // The kudo skill's sponsored-send script, which every write tries first.
+  process.env.KUDO_SPONSORED_SEND = join(SKILLS_DIR, "kudo", "sponsored-send.mjs");
 
   const session = await createSession(options);
   console.log(`skills: ${session.skills.names.join(", ")}`);

@@ -27,6 +27,8 @@ No private key ever appears in output — always pass it as
 | `TEE_ID` | Phala app id of the enclave this agent runs in |
 | `TEE_TRUST_URL` | that app's Phala Trust Center report |
 | `TEE_ID_SOURCE` | `dstack` if the enclave reported its own id, else `environment` |
+| `KUDO_SPONSOR_URL` | Kudo's gas-sponsorship relay; unset when gas is not sponsored |
+| `KUDO_SPONSORED_SEND` | absolute path to the kudo skill's `sponsored-send.mjs` |
 
 Tweeting uses its own credentials — see the **twitter** skill.
 
@@ -45,6 +47,7 @@ and stop rather than guessing.
 
 ```bash
 cast chain-id --rpc-url $RPC_URL
+[ -n "$KUDO_SPONSOR_URL" ] && curl -s $KUDO_SPONSOR_URL/health   # sponsored? until when?
 cast balance $(cast wallet address --private-key $PRIVATE_KEY) --rpc-url $RPC_URL
 cast call $KUDO "hasRole(bytes32,address)(bool)" \
   0xcab5a0bfe0b79d2c4b1c2e02599fa044d115b7511f9659307cb4276950967709 \
@@ -57,6 +60,32 @@ matters when the contract admin has turned mint access control on
 is harmless. With it on, a `false` means `mintCovenant` reverts with
 `AccessForbidden` (`0xef67f5d8`) — the contract admin must grant the role;
 this agent cannot grant it to itself.
+
+If the relay reports `sponsored: true`, gas costs this agent nothing and an
+empty ETH balance is fine. If it is not set, unreachable, or `endsAt` is close,
+say how much ETH the wallet holds: once sponsorship ends every write, payments
+included, needs gas.
+
+## Sending a write
+
+Every write this agent makes — a mint, a claim, a promise proof, metadata, a
+USDG payment and, for the evaluator, a status change — is sent sponsored first,
+as the kudo skill's **Sending a write** describes:
+
+```bash
+node "$KUDO_SPONSORED_SEND" <to> "$(cast calldata '<signature>' <args>)"
+```
+
+Act on the exit code and nothing else:
+
+- `0`: sent; use the printed `transactionHash` as you would a receipt.
+- `2`: **nothing was sent**. Send the same call with plain `cast send`.
+- `1`: sent, and it failed on chain. Do not retry. Report it.
+- `3`: sent, outcome unknown. **Never resend.** Read the chain to find out
+  whether it happened, and report what you found.
+
+Only `2` ever leads to a second attempt. That is what stops a payment being
+made twice.
 
 ## Identity in this runtime
 
@@ -93,8 +122,9 @@ USDG at `0xc44DB72f…` exists only on testnet and is not this token.)
 
 ### Balances — check both
 
-An agent needs USDG for the payment **and** ETH for the gas, and running out
-of either strands it mid-settlement.
+An agent needs USDG for the payment. It also needs ETH for the gas whenever a
+write is not sponsored (`KUDO_SPONSOR_URL` unset, or sponsorship refused or
+ended); running out of either strands it mid-settlement.
 
 ```bash
 ME=$(cast wallet address --private-key $PRIVATE_KEY)
@@ -108,13 +138,21 @@ figure.
 
 ### Sending
 
+Sponsored first, as every write (see **Sending a write**):
+
+```bash
+node "$KUDO_SPONSORED_SEND" $USDG "$(cast calldata 'transfer(address,uint256)' <recipient> <amount-6dp>)"
+```
+
+Only on exit code `2`, the plain transfer:
+
 ```bash
 cast send $USDG 'transfer(address,uint256)' <recipient> <amount-6dp> \
   --private-key $PRIVATE_KEY --rpc-url $RPC_URL --json
 ```
 
-So 40 USDG is `40000000`. Simulate first with `cast call` and the same
-arguments: ERC-20 `transfer` returns `true`, and a revert here usually means
+Either way the payment's proof is its `transactionHash`. So 40 USDG is
+`40000000`. Simulate first with `cast call` and the same arguments: ERC-20 `transfer` returns `true`, and a revert here usually means
 insufficient balance.
 
 ### Verifying a payment — read the log, not the value
@@ -164,9 +202,9 @@ nothing and say so.
 
 ### Margin
 
-Treat the USDG balance as insufficient unless it exceeds the payment, and the
-ETH balance as insufficient unless it covers at least two more transactions —
-the transfer and the attestation that follows it. Say so and decline rather
+Treat the USDG balance as insufficient unless it exceeds the payment. When gas
+is not sponsored, treat the ETH balance as insufficient unless it covers at
+least two more transactions — the transfer and the attestation that follows it. Say so and decline rather
 than sending part of an amount.
 
 ## Covenants whose leg is a tweet
@@ -190,8 +228,9 @@ tweet to settle a new covenant.
 
 This chain produces blocks in roughly 0.2s, and sending again before the node
 has caught up gives `nonce has already been used` or `NonceTooLow`. Always wait
-for each receipt before the next send from the same account. `cast send` waits
-by default; do not background it or run two sends in parallel from one key.
+for each receipt before the next send from the same account. `cast send` and
+`sponsored-send.mjs` both wait; do not background either or run two sends in
+parallel from one key.
 
 ## Revert selectors
 

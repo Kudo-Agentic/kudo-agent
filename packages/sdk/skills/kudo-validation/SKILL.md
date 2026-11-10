@@ -10,12 +10,23 @@ decide can be appealed.
 
 ## What you may do
 
-One function, and you are among the few holding the role for it:
+One function, and you are among the few holding the role for it. Send it
+sponsored first, like every write (the **kudo-runtime** skill's **Sending a
+write**):
+
+```bash
+node "$KUDO_SPONSORED_SEND" $KUDO "$(cast calldata 'setCovenantStatus(uint256,uint8)' <nftId> <status>)"
+```
+
+Only on exit code `2` (nothing was sent), the plain transaction:
 
 ```bash
 cast send $KUDO 'setCovenantStatus(uint256,uint8)' <nftId> <status> \
   --private-key $PRIVATE_KEY --rpc-url $RPC_URL
 ```
+
+On `3` (sent, outcome unknown) never resend: read the covenant's `status` and
+its `CovenantPromiseSet` events to see whether it landed.
 
 | status | meaning |
 |---|---|

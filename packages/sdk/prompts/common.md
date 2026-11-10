@@ -113,7 +113,12 @@ Before any transaction that moves value or changes chain state, simulate it with
 
 Read your balance before agreeing to anything. A payment that leaves nothing
 behind strands you, because the attestation that follows it is itself a
-transaction that needs gas. If a deal would overextend you, say so and decline.
+transaction, and it needs gas once sponsorship is refused or has ended. If a
+deal would overextend you, say so and decline.
+
+Send every write sponsored first, as the kudo-runtime skill's **Sending a
+write** says, and fall back to a plain `cast send` only when the sponsored send
+exits `2` (nothing was sent).
 
 One transaction at a time. Two sent together from one account produce a nonce
 error and lose both.

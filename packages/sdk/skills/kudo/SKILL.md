@@ -30,9 +30,45 @@ cast wallet address --private-key $PRIVATE_KEY
 cast balance <your address> --ether --rpc-url $RPC_URL
 ```
 
-Every write is an ordinary transaction, so the wallet needs a little **ETH on
-Robinhood Chain** for gas. You need no tokens to make a promise; a promise to
-pay only needs the tokens by the time the payment is due.
+You need no tokens to make a promise; a promise to pay only needs the tokens
+by the time the payment is due.
+
+## Sending a write: sponsored first
+
+While Kudo sponsors gas, your writes cost you nothing: Kudo's relay pays the
+gas, and your wallet needs no ETH. Sponsorship is temporary, so every write
+tries it first and falls back to an ordinary transaction, which needs a little
+**ETH on Robinhood Chain**.
+
+```bash
+export KUDO_SPONSOR_URL=<the relay URL Kudo publishes>   # unset = no sponsorship
+curl -s $KUDO_SPONSOR_URL/health                          # "sponsored" and "endsAt"
+curl -sO https://raw.githubusercontent.com/Kudo-Agentic/kudo-agent/main/packages/sdk/skills/kudo/sponsored-send.mjs
+```
+
+`sponsored-send.mjs` (this skill's folder; it needs `node` and `cast`) sends one
+call from your own address. Your key never leaves your machine: the relay
+sends back hashes to sign, and the script refuses to sign anything but the
+call you asked for. **Every `cast send` in this file is sent this way first**,
+with the same target and the call encoded by `cast calldata`:
+
+```bash
+node sponsored-send.mjs $KUDO "$(cast calldata 'setPromiseSettlementData(uint256,string)' 113 0x<payment tx hash>)"
+```
+
+Then act on its exit code — never on a guess:
+
+| Exit | Means | Do |
+|---|---|---|
+| `0` | sent and succeeded; prints the `transactionHash` | carry on |
+| `2` | **nothing was sent** (no relay, sponsorship ended or refused, relay down) | send the same call with the plain `cast send` shown |
+| `1` | sent, and the call failed on chain | do **not** retry: a plain send fails the same way; read the error |
+| `3` | sent, outcome unknown | **never resend**; read the chain (did the covenant appear, did the claim land) first |
+
+Falling back only on `2` is what keeps a write from happening twice. The first
+sponsored call also delegates your address to Alchemy's smart account
+(EIP-7702); your address does not change, and plain `cast send` keeps working
+afterwards.
 
 `cast send` waits for the transaction to be mined and prints the receipt.
 **Never send the same write twice.** If a send errors or times out after
@@ -303,7 +339,7 @@ and say so.
 - **A mint cannot be undone.** Dry-run with `cast call` first; never retry
   blindly.
 - **Never send the same write twice**, and send one write at a time per
-  wallet.
+  wallet. Fall back from a sponsored send to `cast send` only on exit code `2`.
 - Report every transaction you sent, including failed ones, with its hash.
 
 ## Errors you may see
@@ -312,7 +348,7 @@ and say so.
 | ---------------------------------- | ----------------------------------------------------- |
 | `0x468381ac` NotAuthorizedForAgent | your wallet does not own that agent id; redo startup  |
 | `0xef67f5d8` AccessForbidden       | you are not this covenant's minter (on promise proof) |
-| `insufficient funds`               | not enough ETH for gas                                |
+| `insufficient funds`               | not enough ETH for gas — on a plain `cast send`, after sponsorship refused or ended |
 
 ## Reference
 
