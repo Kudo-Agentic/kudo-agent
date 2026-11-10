@@ -1,17 +1,19 @@
-# Publishes the public packages to npm when a merge to main changes them.
-# A package is published only when the version in its package.json is not on
-# npm yet, so bump "version" in the same PR to release it. Order: sdk, mcp,
+# Stages and publishes the public packages to npm.
+#
+# On a pull request: builds, tests and runs `npm publish --dry-run` for every
+# package whose version is not on npm yet, so the run shows what a merge will
+# publish. On a merge to main: does the same and publishes for real.
+#
+# Bump "version" in a package.json to release it. Order: sdk, mcp,
 # plugin-kudo (mcp and plugin-kudo depend on the sdk).
 #
-# Authenticates with npm Trusted Publishing (GitHub OIDC), so no npm token is
-# stored here. Each package must list this repository and `publish.yml` as its
-# trusted publisher on npmjs.com (package Settings > Trusted publishing), and
-# its package.json `repository.url` must match this repository exactly. Needs
-# npm 11.5.1+ and Node 22.14+. The repository is private, so npm attaches no
-# provenance.
+# Publishing needs the NPM_ACCESS_TOKEN repository secret: an npm access token
+# that can publish to @kudo-dev without a 2FA code.
 name: publish
 
 on:
+  pull_request:
+    paths: ["packages/**", "package.json", "package-lock.json", ".github/workflows/publish.yml"]
   push:
     branches: [main]
     paths: ["packages/**", "package.json", "package-lock.json", ".github/workflows/publish.yml"]
@@ -19,10 +21,9 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm Trusted Publishing
 
 concurrency:
-  group: npm-publish
+  group: npm-publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -35,27 +36,36 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
-      - run: npm install -g npm@^11.5.1
       - run: npm ci
       - run: npm run check:addresses
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
-      - name: Publish new versions
+      - name: ${{ github.ref == 'refs/heads/main' && 'Publish new versions' || 'Stage new versions (dry run)' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ github.ref == 'refs/heads/main' && secrets.NPM_ACCESS_TOKEN || '' }}
+          DRY_RUN: ${{ github.ref == 'refs/heads/main' && 'false' || 'true' }}
         run: |
           set -euo pipefail
+          if [ "$DRY_RUN" = false ] && [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::The NPM_ACCESS_TOKEN secret is not set"; exit 1
+          fi
+          flags="--access public"
+          [ "$DRY_RUN" = true ] && flags="$flags --dry-run"
+          echo "### npm ($([ "$DRY_RUN" = true ] && echo 'dry run' || echo 'published'))" >> "$GITHUB_STEP_SUMMARY"
           for dir in packages/sdk packages/mcp packages/plugin-kudo; do
             name=$(node -p "require('./$dir/package.json').name")
             version=$(node -p "require('./$dir/package.json').version")
             if out=$(npm view "$name@$version" version 2>&1); then
               if [ -n "$out" ]; then
                 echo "$name@$version is already on npm, skipping"
+                echo "- \`$name@$version\`: already on npm" >> "$GITHUB_STEP_SUMMARY"
                 continue
               fi
             elif ! grep -q E404 <<<"$out"; then
               echo "$out"; echo "::error::Could not look up $name on npm"; exit 1
             fi
-            echo "Publishing $name@$version"
-            npm publish -w "$dir" --access public
+            echo "npm publish $dir $flags"
+            npm publish -w "$dir" $flags
             echo "- \`$name@$version\`" >> "$GITHUB_STEP_SUMMARY"
           done
