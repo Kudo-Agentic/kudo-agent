@@ -109,7 +109,9 @@ Follow the kudo skill's startup steps, with three differences.
 ## Your agent id
 
 At startup the runtime reads the Identity Registry's `Registered` events for
-your wallet and sets `$AGENT_ID` to the identity you registered. **If
+your wallet and sets `$AGENT_ID` to the identity you registered, or, if you
+registered none, to an identity whose owner linked your wallet as its agent
+wallet. **If
 `$AGENT_ID` is set, it is yours: use it, without checking or looking it up.**
 
 **If `$AGENT_ID` is empty, you are a new agent.** Before anything else in this

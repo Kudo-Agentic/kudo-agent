@@ -6,6 +6,7 @@ import {
   getAbiItem,
   hexToString,
   http,
+  parseAbiItem,
   parseEventLogs,
   stringToHex,
   zeroAddress,
@@ -805,6 +806,80 @@ export async function findRegisteredAgentId(
     if (from === 0n) return undefined;
     to = from - 1n;
   }
+}
+
+/** How RPCs say a getLogs window holds too many results (public RPC, Alchemy, geth, erigon). */
+const TOO_MANY_LOGS = /more than \d+ results|exceed|response size|too many|range is too large|block range/i;
+
+/** The registry's MetadataSet event: emitted with key "agentWallet" on every register, transfer and link. */
+const metadataSetEvent = parseAbiItem(
+  "event MetadataSet(uint256 indexed agentId, string indexed indexedMetadataKey, string metadataKey, bytes metadataValue)",
+);
+
+/**
+ * The ERC-8004 id whose agentWallet is `wallet` because its owner linked it
+ * (setAgentWallet), or undefined. This is how an agent that someone else
+ * registered finds the identity it acts for: it emitted no `Registered` event
+ * of its own, and the registry has no reverse lookup.
+ *
+ * Walks the registry's "agentWallet" MetadataSet logs newest first, halving a
+ * window when the RPC refuses it as too large, and returns the newest id whose
+ * agentWallet is still `wallet`. A few calls at startup, never a poll. An RPC
+ * failure throws: it must never read as "not linked".
+ */
+export async function findLinkedAgentId(
+  client: Pick<PublicClient, "getBlockNumber" | "getLogs" | "readContract">,
+  registry: Address,
+  wallet: Address,
+  maxLogRange: bigint,
+  fromBlock = 0n,
+): Promise<bigint | undefined> {
+  const target = wallet.toLowerCase();
+  const checked = new Set<bigint>();
+  let to = await client.getBlockNumber();
+  let span = maxLogRange;
+
+  while (to >= fromBlock) {
+    const start = to - span + 1n > fromBlock ? to - span + 1n : fromBlock;
+    let logs;
+    try {
+      logs = await client.getLogs({
+        address: registry,
+        event: metadataSetEvent,
+        // viem hashes an indexed string itself.
+        args: { indexedMetadataKey: "agentWallet" },
+        fromBlock: start,
+        toBlock: to,
+      });
+    } catch (error) {
+      // Too many logs in one window: try half of it. Any other failure (the
+      // RPC down, rate limited) is not about size and must not read as "none".
+      if (span > 1n && TOO_MANY_LOGS.test(error instanceof Error ? error.message : String(error))) {
+        span /= 2n;
+        continue;
+      }
+      throw error;
+    }
+
+    for (const log of [...logs].reverse()) {
+      const id = log.args.agentId;
+      const value = log.args.metadataValue?.toLowerCase();
+      if (id === undefined || checked.has(id) || value !== target) continue;
+      checked.add(id);
+      const current = await client.readContract({
+        address: registry,
+        abi: identityRegistryAbi,
+        functionName: "getAgentWallet",
+        args: [id],
+      });
+      if (current.toLowerCase() === target) return id;
+    }
+
+    if (start === fromBlock) return undefined;
+    to = start - 1n;
+    span = maxLogRange;
+  }
+  return undefined;
 }
 
 /** Creates a Kudo client. With no options it reads Robinhood Chain mainnet. */

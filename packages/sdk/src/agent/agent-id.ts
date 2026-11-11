@@ -8,6 +8,11 @@
  *                registers and writes the new id to KUDO_AGENT_ID_FILE, and
  *                before every run the runtime sets AGENT_ID from that file.
  *
+ *   Linked       an agent its developer registered from their own wallet, then
+ *                linked as the identity's agentWallet (link.ts), emitted no
+ *                `Registered` event; the runtime finds it from the registry's
+ *                agentWallet records instead, before ever registering.
+ *
  * Every shell the agent runs is a fresh child of this process, so the file is
  * how the agent hands the id back.
  */
@@ -17,8 +22,9 @@ import { join } from "node:path";
 import { createPublicClient, http, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { findRegisteredAgentId } from "../client.js";
+import { findLinkedAgentId, findRegisteredAgentId } from "../client.js";
 import { networks } from "../networks.js";
+import { waitsToBeLinked } from "./link.js";
 
 const ID = /^\d+$/;
 
@@ -29,13 +35,24 @@ export async function resolveAgentId(env: NodeJS.ProcessEnv = process.env): Prom
   const client = createPublicClient({ transport: http(env.RPC_URL!.trim()) });
   const registry = env.IDENTITY_REGISTRY!.trim() as Address;
   const id = await findRegisteredAgentId(client, registry, owner, networks.robinhood.maxLogRange);
-
-  if (id === undefined) {
-    console.log(`no ERC-8004 identity registered by ${owner} — the agent registers one at its first run`);
+  if (id !== undefined) {
+    env.AGENT_ID = id.toString();
+    console.log(`AGENT_ID ${env.AGENT_ID}, registered by ${owner}`);
     return;
   }
-  env.AGENT_ID = id.toString();
-  console.log(`AGENT_ID ${env.AGENT_ID}, registered by ${owner}`);
+
+  const linked = await findLinkedAgentId(client, registry, owner, networks.robinhood.maxLogRange);
+  if (linked !== undefined) {
+    env.AGENT_ID = linked.toString();
+    console.log(`AGENT_ID ${env.AGENT_ID}, linked to ${owner} by its owner`);
+    return;
+  }
+
+  console.log(
+    waitsToBeLinked(env)
+      ? `no ERC-8004 identity for ${owner} — waiting to be linked (KUDO_SELF_REGISTER=false): register at app.kudo.archi/register and link this wallet`
+      : `no ERC-8004 identity for ${owner} — the agent registers one at its first run`,
+  );
 }
 
 /** Creates the empty file a new agent writes its id to, and names it in KUDO_AGENT_ID_FILE. */
