@@ -807,6 +807,38 @@ export async function findRegisteredAgentId(
   }
 }
 
+/**
+ * The newest ERC-8004 id `registrant` registered, whoever owns it now, or
+ * undefined if it never registered one. Unlike {@link findRegisteredAgentId}
+ * this still finds an id after it was transferred away — which is what a
+ * launched agent does with its identity, so a restart must not read the hand-
+ * over as "never registered" and register a second one.
+ *
+ * `fromBlock` bounds the walk back (a launched agent is told the block it was
+ * launched at); without it this walks to genesis one window at a time. An RPC
+ * failure throws, never reads as "none".
+ */
+export async function findRegistrationBy(
+  client: Pick<PublicClient, "getBlockNumber" | "getLogs">,
+  registry: Address,
+  registrant: Address,
+  maxLogRange: bigint,
+  fromBlock = 0n,
+): Promise<bigint | undefined> {
+  const registered = getAbiItem({ abi: identityRegistryAbi, name: "Registered" });
+  let to = await client.getBlockNumber();
+  while (to >= fromBlock) {
+    const windowStart = to >= maxLogRange ? to - maxLogRange + 1n : 0n;
+    const from = windowStart > fromBlock ? windowStart : fromBlock;
+    const logs = await client.getLogs({ address: registry, event: registered, args: { owner: registrant }, fromBlock: from, toBlock: to });
+    const newest = logs.at(-1)?.args.agentId;
+    if (newest !== undefined) return newest;
+    if (from === 0n || from === fromBlock) return undefined;
+    to = from - 1n;
+  }
+  return undefined;
+}
+
 /** Creates a Kudo client. With no options it reads Robinhood Chain mainnet. */
 export function createKudo(options: KudoOptions = {}): Kudo {
   return new Kudo(options);

@@ -66,6 +66,40 @@ export const identityRegistryAbi = [
     stateMutability: "view",
   },
   {
+    type: "function",
+    name: "transferFrom",
+    inputs: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "tokenId", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    // The wallet that acts for the agent. register() sets it to the
+    // registrant, and every transfer clears it.
+    type: "function",
+    name: "getAgentWallet",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
+  {
+    // Owner (or approved) only, with an EIP-712 AgentWalletSet signature from
+    // newWallet whose deadline is at most 5 minutes out.
+    type: "function",
+    name: "setAgentWallet",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "newWallet", type: "address" },
+      { name: "deadline", type: "uint256" },
+      { name: "signature", type: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
     type: "event",
     name: "Registered",
     inputs: [

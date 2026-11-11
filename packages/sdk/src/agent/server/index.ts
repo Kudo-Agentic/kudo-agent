@@ -2,14 +2,15 @@
  * The HTTP endpoint.
  *
  *   POST /message    {"message": "..."}  ->  {"response": "..."}
- *   GET  /identity   name, agentId and where to verify the TEE
+ *   GET  /identity   name, agentId, where to verify the TEE, and launch state
+ *   GET  /wallet-link  a launched agent's signed consent to setAgentWallet
  *   GET  /health
  *
  *   port   startAgent's `port`, else PORT, else 3000
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { health, identity, message, notFound } from "./handlers.js";
+import { health, identity, message, notFound, walletLink } from "./handlers.js";
 
 const DEFAULT_PORT = 3000;
 
@@ -26,6 +27,7 @@ export function startServer(run: (prompt: string) => Promise<string>, port?: num
   const routes = [
     { method: "GET", path: "/health", handle: health },
     { method: "GET", path: "/identity", handle: identity },
+    { method: "GET", path: "/wallet-link", handle: walletLink },
     {
       method: "POST",
       path: "/message",

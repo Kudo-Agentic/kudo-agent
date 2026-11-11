@@ -8,7 +8,8 @@
     "packages/mcp",
     "packages/plugin-kudo",
     "agents/shinichi",
-    "agents/megure"
+    "agents/megure",
+    "agents/launchable"
   ],
   "scripts": {
     "build": "npm run build -w @kudo-dev/sdk && npm run build -w @kudo-dev/mcp -w @kudo-dev/plugin-kudo",
