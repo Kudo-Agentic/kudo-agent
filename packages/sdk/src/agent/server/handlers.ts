@@ -2,7 +2,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { AgentRunError } from "../agent.js";
-import { LinkRefused, NotLinkedYet, signWalletLink } from "../link.js";
 import { redact } from "../log.js";
 import { allowLongRun, readBody, sendJson } from "./http.js";
 
@@ -29,44 +28,7 @@ export function identity(_request: IncomingMessage, response: ServerResponse): v
 }
 
 export function notFound(_request: IncomingMessage, response: ServerResponse): void {
-  sendJson(response, 404, { error: "Not found. Try POST /message, GET /identity, GET /wallet-link or GET /health." });
-}
-
-/**
- * Lets a page on another origin (e.g. app.kudo.archi/register) call
- * GET /wallet-link from the browser. No cookies are involved, so any origin
- * is fine.
- */
-const LINK_CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Max-Age": "600",
-};
-
-export function walletLinkPreflight(_request: IncomingMessage, response: ServerResponse): void {
-  response.writeHead(204, LINK_CORS);
-  response.end();
-}
-
-/**
- * GET /wallet-link?agentId=&owner= — this agent's signed consent to be
- * linked as that identity's agentWallet, for its owner to send with
- * setAgentWallet. See link.ts. Open like every other route here: guarding the
- * agent's endpoint (a proxy, an allow list) is up to whoever runs it.
- */
-export async function walletLink(request: IncomingMessage, response: ServerResponse): Promise<void> {
-  for (const [name, value] of Object.entries(LINK_CORS)) response.setHeader(name, value);
-
-  const query = new URL(request.url ?? "/", "http://agent").searchParams;
-  try {
-    sendJson(response, 200, await signWalletLink({ agentId: query.get("agentId"), owner: query.get("owner") }));
-  } catch (error) {
-    if (error instanceof LinkRefused) return sendJson(response, error.status, { error: error.message });
-    const reason = redact(error instanceof Error ? error.message : String(error));
-    console.error(`GET /wallet-link failed: ${reason}`);
-    sendJson(response, 500, { error: reason });
-  }
+  sendJson(response, 404, { error: "Not found. Try POST /message, GET /identity or GET /health." });
 }
 
 /** POST /message  {"message": "..."}  ->  {"response": "..."}. `run` does one agent run. */
@@ -75,7 +37,6 @@ export async function message(
   response: ServerResponse,
   run: (prompt: string) => Promise<string>,
 ): Promise<void> {
-
   let body: unknown;
   try {
     body = JSON.parse(await readBody(request));
@@ -97,9 +58,8 @@ export async function message(
     const reason = redact(error instanceof Error ? error.message : String(error));
     console.error(`POST /message failed: ${reason}`);
 
-    // Not linked yet is a wait (503); a run that started and ended badly is the
-    // agent's failure (502); anything else is ours (500).
-    const status = error instanceof NotLinkedYet ? 503 : error instanceof AgentRunError ? 502 : 500;
-    sendJson(response, status, { error: reason });
+    // A run that started and ended badly is the agent's failure (502); anything
+    // else is ours (500).
+    sendJson(response, error instanceof AgentRunError ? 502 : 500, { error: reason });
   }
 }

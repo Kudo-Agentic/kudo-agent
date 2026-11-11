@@ -8,8 +8,6 @@
  *
  *   SHUTDOWN_GRACE_SECONDS   how long a run may finish in on shutdown (default 120)
  *   KUDO_KEY_SOURCE          "env" (PRIVATE_KEY) or "dstack" (derived in the TEE); see key.ts
- *   KUDO_SELF_REGISTER       "false": never register an identity of its own; run
- *                            nothing until an owner links this wallet (link.ts)
  */
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -20,7 +18,6 @@ import { prepareAgentIdFile, resolveAgentId, syncAgentId } from "./agent-id.js";
 import { requireEnvironment, warnIfTwitterIncomplete } from "./config.js";
 import { exclusive, resolveJobs, startJobs, whenRunsIdle, type AgentJob, type JobSpec } from "./jobs.js";
 import { resolveSigningKey } from "./key.js";
-import { NotLinkedYet, waitsToBeLinked } from "./link.js";
 import { loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
 import { startServer } from "./server/index.js";
 import { SKILLS_DIR } from "./paths.js";
@@ -128,22 +125,15 @@ export async function startAgent(options: AgentOptions): Promise<void> {
     if (recorded) console.log(`AGENT_ID ${recorded}, as the agent recorded it after registering`);
   };
 
-  // An agent waiting to be linked has no identity to act for, and must not
-  // register one: it runs nothing until GET /wallet-link's owner links it.
-  const unlinked = () => waitsToBeLinked() && !process.env.AGENT_ID?.trim();
-  const WAITING = "waiting to be linked to an identity (KUDO_SELF_REGISTER=false); nothing run";
-
   // Through the same lock as the jobs: a message run signs from the same key.
   const run = (prompt: string) =>
     exclusive(async () => {
       await beforeRun();
-      if (unlinked()) throw new NotLinkedYet(`Not ready: ${WAITING}.`);
       return runAgent(prompt, session, "message");
     });
   // Read on every run, so an edited prompt file takes effect at the next tick.
   const runJob = async (job: JobSpec) => {
     await beforeRun();
-    if (unlinked()) return WAITING;
     return runAgent(await loadPrompt(job.name, job.prompt), session, job.name);
   };
 

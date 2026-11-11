@@ -3,14 +3,13 @@
  *
  *   POST /message    {"message": "..."}  ->  {"response": "..."}
  *   GET  /identity   name, agentId and where to verify the TEE
- *   GET  /wallet-link  signed consent to be linked to an owner's identity (link.ts)
  *   GET  /health
  *
  *   port   startAgent's `port`, else PORT, else 3000
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { health, identity, message, notFound, walletLink, walletLinkPreflight } from "./handlers.js";
+import { health, identity, message, notFound } from "./handlers.js";
 
 const DEFAULT_PORT = 3000;
 
@@ -27,8 +26,6 @@ export function startServer(run: (prompt: string) => Promise<string>, port?: num
   const routes = [
     { method: "GET", path: "/health", handle: health },
     { method: "GET", path: "/identity", handle: identity },
-    { method: "GET", path: "/wallet-link", handle: walletLink },
-    { method: "OPTIONS", path: "/wallet-link", handle: walletLinkPreflight },
     {
       method: "POST",
       path: "/message",
@@ -37,9 +34,9 @@ export function startServer(run: (prompt: string) => Promise<string>, port?: num
   ];
 
   function route(request: IncomingMessage, response: ServerResponse): void {
-    // By path, so a query string (GET /wallet-link?agentId=…) still matches.
-    const path = new URL(request.url ?? "/", "http://agent").pathname;
-    const match = routes.find((candidate) => candidate.method === request.method && candidate.path === path);
+    const match = routes.find(
+      (candidate) => candidate.method === request.method && candidate.path === request.url,
+    );
     // Handlers may be async; nothing awaits them, so an unhandled rejection
     // would be invisible. Each handler owns its own error reporting.
     void (match ? match.handle(request, response) : notFound(request, response));
