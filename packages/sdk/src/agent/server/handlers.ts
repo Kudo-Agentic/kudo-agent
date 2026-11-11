@@ -1,5 +1,4 @@
 /** What each endpoint does. */
-import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { AgentRunError } from "../agent.js";
@@ -35,13 +34,13 @@ export function notFound(_request: IncomingMessage, response: ServerResponse): v
 
 /**
  * Lets a page on another origin (e.g. app.kudo.archi/register) call
- * GET /wallet-link from the browser. It carries a bearer token, not cookies,
- * so any origin is fine: without the token it gets nothing.
+ * GET /wallet-link from the browser. No cookies are involved, so any origin
+ * is fine.
  */
 const LINK_CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization",
+  "Access-Control-Allow-Headers": "authorization, content-type",
   "Access-Control-Max-Age": "600",
 };
 
@@ -53,16 +52,11 @@ export function walletLinkPreflight(_request: IncomingMessage, response: ServerR
 /**
  * GET /wallet-link?agentId=&owner= — this agent's signed consent to be
  * linked as that identity's agentWallet, for its owner to send with
- * setAgentWallet. See link.ts. Needs the CHAT_TOKEN, and is refused outright
- * while none is set: an open endpoint would let anyone who owns an identity
- * claim this agent's wallet for it.
+ * setAgentWallet. See link.ts. Open like every other route here: guarding the
+ * agent's endpoint (a proxy, an allow list) is up to whoever runs it.
  */
 export async function walletLink(request: IncomingMessage, response: ServerResponse): Promise<void> {
   for (const [name, value] of Object.entries(LINK_CORS)) response.setHeader(name, value);
-  if (!process.env.CHAT_TOKEN?.trim()) {
-    return sendJson(response, 403, { error: "Linking from a page is off: set CHAT_TOKEN on this agent to allow it." });
-  }
-  if (!authorised(request)) return sendJson(response, 401, { error: "Missing or wrong bearer token." });
 
   const query = new URL(request.url ?? "/", "http://agent").searchParams;
   try {
@@ -75,27 +69,12 @@ export async function walletLink(request: IncomingMessage, response: ServerRespo
   }
 }
 
-/**
- * With CHAT_TOKEN set, POST /message needs `Authorization: Bearer <CHAT_TOKEN>`.
- * Every message is a paid model run, so an endpoint on the public internet
- * should not answer just anyone. Unset, it stays open (as before).
- */
-function authorised(request: IncomingMessage): boolean {
-  const expected = process.env.CHAT_TOKEN?.trim();
-  if (!expected) return true;
-  const given = /^Bearer\s+(.+)$/i.exec(request.headers.authorization ?? "")?.[1]?.trim() ?? "";
-  // Compare digests, so neither the length nor the content leaks through timing.
-  const digest = (text: string) => createHash("sha256").update(text).digest();
-  return timingSafeEqual(digest(given), digest(expected));
-}
-
 /** POST /message  {"message": "..."}  ->  {"response": "..."}. `run` does one agent run. */
 export async function message(
   request: IncomingMessage,
   response: ServerResponse,
   run: (prompt: string) => Promise<string>,
 ): Promise<void> {
-  if (!authorised(request)) return sendJson(response, 401, { error: "Missing or wrong bearer token." });
 
   let body: unknown;
   try {

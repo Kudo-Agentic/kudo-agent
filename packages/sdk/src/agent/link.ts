@@ -9,7 +9,6 @@
  * consent at GET /wallet-link and the owner sends it.
  *
  *   GET /wallet-link?agentId=<id>&owner=<address>
- *     Authorization: Bearer <CHAT_TOKEN>   (refused while CHAT_TOKEN is unset)
  *     -> { agentId, newWallet, owner, deadline, signature }
  *
  * It signs only when `owner` holds the identity now, and not while this agent
