@@ -5,7 +5,7 @@
  *   KUDO_KEY_SOURCE=dstack   derived inside the TEE by Phala's dstack. The key
  *                            never exists outside the enclave, is the same on
  *                            every restart of the same app, and nobody has to
- *                            paste it anywhere. A launched agent uses this.
+ *                            paste it anywhere.
  *
  * Either way the result lands in PRIVATE_KEY, because the bundled `cast` and
  * sponsored-send scripts read it from there.

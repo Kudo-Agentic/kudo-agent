@@ -8,9 +8,6 @@
  *
  *   SHUTDOWN_GRACE_SECONDS   how long a run may finish in on shutdown (default 120)
  *   KUDO_KEY_SOURCE          "env" (PRIVATE_KEY) or "dstack" (derived in the TEE); see key.ts
- *   OWNER_ADDRESS            set for an agent launched for someone: it registers
- *                            itself, hands them the identity and waits to be
- *                            linked before any job runs; see launch.ts
  */
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -21,7 +18,6 @@ import { prepareAgentIdFile, resolveAgentId, syncAgentId } from "./agent-id.js";
 import { requireEnvironment, warnIfTwitterIncomplete } from "./config.js";
 import { exclusive, resolveJobs, startJobs, whenRunsIdle, type AgentJob, type JobSpec } from "./jobs.js";
 import { resolveSigningKey } from "./key.js";
-import { isLaunched, runLaunch } from "./launch.js";
 import { loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
 import { startServer } from "./server/index.js";
 import { SKILLS_DIR } from "./paths.js";
@@ -109,11 +105,8 @@ export async function startAgent(options: AgentOptions): Promise<void> {
   requireEnvironment();
   warnIfTwitterIncomplete();
   if (keySource === "dstack") console.log("signing key: derived in the TEE (dstack)");
-  const launched = isLaunched();
   // AGENT_ID comes from the registry, never from the environment (agent-id.ts).
-  // A launched agent finds it itself: its identity has moved to its owner, so
-  // the "registered and still owned" lookup would miss it.
-  if (!launched) await resolveAgentId();
+  await resolveAgentId();
   await announceTee();
   // The kudo skill's sponsored-send script, which every write tries first.
   process.env.KUDO_SPONSORED_SEND = join(SKILLS_DIR, "kudo", "sponsored-send.mjs");
@@ -145,7 +138,7 @@ export async function startAgent(options: AgentOptions): Promise<void> {
   };
 
   const server = startServer(run, options.port);
-  let scheduled: ReturnType<typeof startJobs> | undefined;
+  const scheduled = startJobs(jobs, runJob);
 
   let shuttingDown = false;
 
@@ -162,7 +155,7 @@ export async function startAgent(options: AgentOptions): Promise<void> {
 
     console.log(`shutting down (up to ${SHUTDOWN_GRACE_MS / 1000}s for the current run)`);
     server.close();
-    scheduled?.stop();
+    scheduled.stop();
 
     // .unref() so a pending timer cannot keep the process alive on its own.
     const deadline = new Promise<"timeout">((resolveTimeout) =>
@@ -170,7 +163,7 @@ export async function startAgent(options: AgentOptions): Promise<void> {
     );
 
     // Jobs, and any /message run in flight or already queued behind the lock.
-    const idle = Promise.all([scheduled?.whenIdle(), whenRunsIdle()]);
+    const idle = Promise.all([scheduled.whenIdle(), whenRunsIdle()]);
     void Promise.race([idle, deadline]).then((outcome) => {
       if (outcome === "timeout") console.error("run did not finish in time — exiting anyway");
       process.exit(0);
@@ -179,10 +172,4 @@ export async function startAgent(options: AgentOptions): Promise<void> {
 
   process.on("SIGTERM", shutdown); // orchestrator stopping the container
   process.on("SIGINT", shutdown); // Ctrl-C
-
-  // A launched agent registers, hands over its identity and waits to be
-  // linked first: until then it cannot act for that identity. /identity and
-  // /wallet-link answer meanwhile; /message says it is not ready.
-  if (launched) await runLaunch();
-  if (!shuttingDown) scheduled = startJobs(jobs, runJob);
 }

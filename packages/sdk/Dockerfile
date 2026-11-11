@@ -29,7 +29,6 @@ COPY packages/mcp/package.json packages/mcp/
 COPY packages/plugin-kudo/package.json packages/plugin-kudo/
 COPY agents/shinichi/package.json agents/shinichi/
 COPY agents/megure/package.json agents/megure/
-COPY agents/launchable/package.json agents/launchable/
 RUN npm ci --workspace packages/sdk --workspace "$AGENT" --include-workspace-root=false
 COPY packages/sdk packages/sdk
 RUN npm run build -w @kudo-dev/sdk \
