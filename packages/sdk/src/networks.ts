@@ -31,7 +31,7 @@ export const robinhood: Chain = defineChain({
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: ["https://rpc.mainnet.chain.robinhood.com"] } },
   blockExplorers: {
-    default: { name: "Blockscout", url: "https://robinhoodchain.blockscout.com" },
+    default: { name: "RobinScan", url: "https://robin.etherscan.io" },
   },
   contracts: {
     multicall3: { address: "0xca11bde05977b3631167028862be2a173976ca11" },
@@ -49,7 +49,7 @@ export const networks = {
     reputationRegistry: "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
     statuses: ["MINTED", "IN_PROGRESS", "COMPLETED", "FAILED"],
     covenantUrl: "https://app.kudo.archi/share/{id}",
-    explorerUrl: "https://robinhoodchain.blockscout.com",
+    explorerUrl: "https://robin.etherscan.io",
     maxLogRange: 10_000_000n,
   },
 } as const satisfies Record<string, KudoNetwork>;
