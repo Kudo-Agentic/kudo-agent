@@ -34,8 +34,8 @@ export interface AgentOptions {
   /**
    * Scheduled jobs by name, each `{ interval, prompt? }`: seconds between runs
    * and the task prompt (text, a path or a file: URL). A job without a prompt
-   * runs the bundled one of its name (`take-work`, `settle-due`). Default
-   * `{ "settle-due": { interval: 300 } }`; JOBS overrides the schedule.
+   * runs the bundled one of its name (`settle-asks`, `settle-promises`). Default
+   * `{ "settle-promises": { interval: 300 } }`; JOBS overrides the schedule.
    */
   jobs?: Record<string, AgentJob>;
   /** HTTP port. Default PORT, else 3000. */

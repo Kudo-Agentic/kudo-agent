@@ -53,11 +53,11 @@ describe("prompts", () => {
   });
 
   it("runs a job's own prompt, else the bundled one of its name", async () => {
-    expect(await bundledPrompts()).toEqual(["settle-due", "take-work"]);
+    expect(await bundledPrompts()).toEqual(["settle-asks", "settle-promises"]);
     expect(await loadPrompt("validate", "Judge the covenants.")).toBe("Judge the covenants.");
-    expect(await loadPrompt("settle-due")).toMatch(/Settle every covenant/);
-    expect(await loadPrompt("settle-due", "mine")).toBe("mine");
-    const file = new URL("../prompts/take-work.txt", import.meta.url);
+    expect(await loadPrompt("settle-promises")).toMatch(/Settle every covenant/);
+    expect(await loadPrompt("settle-promises", "mine")).toBe("mine");
+    const file = new URL("../prompts/settle-asks.txt", import.meta.url);
     expect(await loadPrompt("anything", file)).toBe((await readFile(file, "utf8")).trim());
     await expect(loadPrompt("validate")).rejects.toThrow(/Job "validate" has no prompt/);
   });
@@ -73,12 +73,12 @@ describe("jobs", () => {
   it("uses the agent's jobs unless JOBS or TICK_INTERVAL_SECONDS=0 overrides them", () => {
     const validate = { interval: 180, prompt: "Judge." };
     expect(resolveJobs({ validate }, {})).toEqual([{ name: "validate", intervalSeconds: 180, prompt: "Judge." }]);
-    expect(resolveJobs({ "take-work": { interval: 60 } }, {})).toEqual([{ name: "take-work", intervalSeconds: 60 }]);
-    expect(resolveJobs(undefined, {})).toEqual([{ name: "settle-due", intervalSeconds: 300 }]);
+    expect(resolveJobs({ "settle-asks": { interval: 60 } }, {})).toEqual([{ name: "settle-asks", intervalSeconds: 60 }]);
+    expect(resolveJobs(undefined, {})).toEqual([{ name: "settle-promises", intervalSeconds: 300 }]);
     // JOBS changes the schedule; a job it names keeps the prompt the agent gave it.
-    expect(resolveJobs({ validate }, { JOBS: "validate:60, settle-due:90" })).toEqual([
+    expect(resolveJobs({ validate }, { JOBS: "validate:60, settle-promises:90" })).toEqual([
       { name: "validate", intervalSeconds: 60, prompt: "Judge." },
-      { name: "settle-due", intervalSeconds: 90 },
+      { name: "settle-promises", intervalSeconds: 90 },
     ]);
     expect(resolveJobs({ validate }, { TICK_INTERVAL_SECONDS: "0" })).toEqual([]);
     expect(() => resolveJobs({ validate: { interval: 5 } }, {})).toThrow(/seconds >= 10/);

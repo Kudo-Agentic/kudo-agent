@@ -1,5 +1,5 @@
 Look for an open ask you can perform, and perform it. You are not settling
-your own covenants in this run — that is a separate job.
+your own promises in this run — that is the settle-promises job.
 
 An ask is open to you when all of these hold:
 

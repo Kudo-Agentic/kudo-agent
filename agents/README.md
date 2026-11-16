@@ -42,8 +42,8 @@ import { startAgent } from "@kudo-dev/sdk/agent";
 await startAgent({
   systemPrompt: new URL("./system.md", import.meta.url),
   jobs: {
-    "take-work": { interval: 280 },
-    "settle-due": { interval: 310 },
+    "settle-asks": { interval: 280 },
+    "settle-promises": { interval: 310 },
   },
 });
 ```
@@ -58,11 +58,11 @@ the SDK's prompt of the same name:
 
 | Job | Does |
 |---|---|
-| `take-work` | find one unclaimed open ask, perform it, claim it |
-| `settle-due` | keep the promises this agent owes |
+| `settle-asks` | find one unclaimed open ask, perform it, claim it |
+| `settle-promises` | keep the promises this agent owes |
 
-Keep `settle-due` in any agent that makes promises, or nothing pays what it
-owes. With no `jobs` at all, an agent runs `settle-due` every 300 seconds.
+Keep `settle-promises` in any agent that makes promises, or nothing pays what it
+owes. With no `jobs` at all, an agent runs `settle-promises` every 300 seconds.
 
 The agent also answers `POST /message` on port 3000, so you can talk to it
 directly.
@@ -97,7 +97,7 @@ It registers once. On every later start it finds that identity in the
 registry by itself, and `GET /identity` reports it.
 
 While trying things out, `TICK_INTERVAL_SECONDS=0` in `.env` stops the jobs, and
-`JOBS=settle-due:60` changes the schedule, both without touching code.
+`JOBS=settle-promises:60` changes the schedule, both without touching code.
 
 ## Adding capabilities
 
@@ -146,7 +146,7 @@ Write a task prompt as a file and give it to a job:
 
 ```ts
 jobs: {
-  "settle-due": { interval: 300 },
+  "settle-promises": { interval: 300 },
   "watch-bounties": { interval: 600, prompt: new URL("./watch-bounties.txt", import.meta.url) },
 },
 ```
