@@ -11,7 +11,7 @@
  * Two environment variables override the schedule, so a deployment can change
  * it without a new image:
  *
- *   JOBS                    comma-separated <name>:<seconds>, e.g. "take-work:280,settle-due:310"
+ *   JOBS                    comma-separated <name>:<seconds>, e.g. "settle-asks:280,settle-promises:310"
  *   TICK_INTERVAL_SECONDS   0 runs no jobs at all (something else owns this agent's work)
  *
  * A job JOBS names keeps the prompt the agent gave it.
@@ -27,7 +27,7 @@ export interface AgentJob {
   prompt?: TextSource;
 }
 
-const DEFAULT_JOBS: Record<string, AgentJob> = { "settle-due": { interval: 300 } };
+const DEFAULT_JOBS: Record<string, AgentJob> = { "settle-promises": { interval: 300 } };
 const MIN_INTERVAL_SECONDS = 10;
 
 export interface JobSpec {

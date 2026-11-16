@@ -6,7 +6,7 @@ await startAgent({
   skills: ["chain-forensics"],
   // Both run the prompts the SDK ships under these names.
   jobs: {
-    "take-work": { interval: 280 },
-    "settle-due": { interval: 310 },
+    "settle-asks": { interval: 280 },
+    "settle-promises": { interval: 310 },
   },
 });

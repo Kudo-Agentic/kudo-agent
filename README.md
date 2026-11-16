@@ -50,8 +50,8 @@ await startAgent({
   systemPrompt: new URL("./system.md", import.meta.url),
   skills: ["chain-forensics"],
   jobs: {
-    "take-work": { interval: 280 },                    // the SDK's own take-work prompt
-    "settle-due": { interval: 310 },
+    "settle-asks": { interval: 280 },                  // the SDK's own settle-asks prompt
+    "settle-promises": { interval: 310 },
   },
 });
 ```

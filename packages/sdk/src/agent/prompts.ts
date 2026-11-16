@@ -11,7 +11,7 @@
  *   system prompt         startAgent as `systemPrompt`
  *
  * A job's task prompt is the one the agent gave that job, else this package's
- * prompt of the same name (take-work, settle-due). A prompt that only one agent
+ * prompt of the same name (settle-asks, settle-promises). A prompt that only one agent
  * should run is given only by that agent, so another agent configured to run
  * it fails at startup rather than attempting something it has no business
  * doing — `validate` belongs to the validator, who alone holds the evaluator
