@@ -13,7 +13,7 @@
  * `cast` on the PATH. The library itself (`@kudo-dev/sdk`) needs neither.
  */
 export { startAgent, createSession, type AgentOptions } from "./start.js";
-export { runAgent, AgentRunError, type AgentSession } from "./agent.js";
+export { runAgent, runVisitorChat, VISITOR_RULES, AgentRunError, type AgentSession } from "./agent.js";
 export { bundledSkills, DEFAULT_SKILLS, type SkillRef } from "./skills.js";
 export { bundledPrompts, loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
 export { resolveJobs, type AgentJob, type JobSpec } from "./jobs.js";

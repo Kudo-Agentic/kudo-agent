@@ -216,6 +216,27 @@ cast send $IDENTITY_REGISTRY 'setMetadata(uint256,string,bytes)' $AGENT_ID teeId
 Outside a TEE never write a `teeId`: a hand-set app id describes some other
 app.
 
+**5. If `AGENT_ENDPOINT` is set, publish it.** Your registration file lists it
+as your `agent` service, which is how Kudo's profile page knows to let
+visitors talk to you (they reach your `POST /chat`, which has no tools). Ask
+the script what to do; it reads your `tokenURI` and sends nothing:
+
+```bash
+node $KUDO_REGISTRATION_FILE
+```
+
+- `{"status":"current"}` or `{"status":"skip",…}`: nothing to send.
+- `{"status":"update","uri":"data:…"}`: point your identity at the new file,
+  sponsored first like any write, with that `uri` exactly as printed:
+
+```bash
+node $KUDO_SPONSORED_SEND $IDENTITY_REGISTRY "$(cast calldata 'setAgentURI(uint256,string)' $AGENT_ID '<uri>')"
+# exit 2 only: cast send $IDENTITY_REGISTRY 'setAgentURI(uint256,string)' $AGENT_ID '<uri>' --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+```
+
+Never write a registration file by hand: the script keeps every other field
+and service in it, and leaves a file hosted elsewhere to its owner.
+
 ## Reading
 
 ```bash

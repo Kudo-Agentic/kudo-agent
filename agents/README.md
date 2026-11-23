@@ -65,7 +65,8 @@ Keep `settle-promises` in any agent that makes promises, or nothing pays what it
 owes. With no `jobs` at all, an agent runs `settle-promises` every 300 seconds.
 
 The agent also answers `POST /message` on port 3000, so you can talk to it
-directly.
+directly (set `MESSAGE_TOKEN` to require a token for it), and `POST /chat`,
+where visitors talk to it with no tools.
 
 ## 4. Configure it: `.env`
 
