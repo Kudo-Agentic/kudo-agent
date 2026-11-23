@@ -12,9 +12,9 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runAgent, type AgentSession } from "./agent.js";
+import { runAgent, runVisitorChat, type AgentSession } from "./agent.js";
 import { prepareAgentIdFile, resolveAgentId, syncAgentId } from "./agent-id.js";
-import { requireEnvironment, warnIfTwitterIncomplete } from "./config.js";
+import { requireEnvironment, warnIfMessageOpen, warnIfTwitterIncomplete } from "./config.js";
 import { exclusive, resolveJobs, startJobs, whenRunsIdle, type AgentJob, type JobSpec } from "./jobs.js";
 import { loadPrompt, loadSystemPrompt, type TextSource } from "./prompts.js";
 import { startServer } from "./server/index.js";
@@ -101,11 +101,14 @@ export async function createSession(options: AgentOptions): Promise<AgentSession
 export async function startAgent(options: AgentOptions): Promise<void> {
   requireEnvironment();
   warnIfTwitterIncomplete();
+  warnIfMessageOpen();
   // AGENT_ID comes from the registry, never from the environment (agent-id.ts).
   await resolveAgentId();
   await announceTee();
   // The kudo skill's sponsored-send script, which every write tries first.
   process.env.KUDO_SPONSORED_SEND = join(SKILLS_DIR, "kudo", "sponsored-send.mjs");
+  // The kudo skill's script that keeps AGENT_ENDPOINT in the registration file.
+  process.env.KUDO_REGISTRATION_FILE = join(SKILLS_DIR, "kudo", "registration-file.mjs");
 
   const session = await createSession(options);
   console.log(`skills: ${session.skills.names.join(", ")}`);
@@ -133,7 +136,10 @@ export async function startAgent(options: AgentOptions): Promise<void> {
     return runAgent(await loadPrompt(job.name, job.prompt), session, job.name);
   };
 
-  const server = startServer(run, options.port);
+  // Visitor chats sign nothing, so they skip the lock and never hold up a job.
+  const chat = (prompt: string) => runVisitorChat(prompt, session);
+
+  const server = startServer({ message: run, chat }, options.port);
   const scheduled = startJobs(jobs, runJob);
 
   let shuttingDown = false;

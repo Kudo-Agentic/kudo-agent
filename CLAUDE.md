@@ -47,9 +47,10 @@ suites are described in `tests/e2e/README.md`.
 ## Architecture
 
 `startAgent` (`packages/sdk/src/agent/start.ts`) starts the HTTP server
-(`server/`: `/message`, `/identity`, `/health`) and the scheduled jobs
+(`server/`: `/message`, `/chat`, `/identity`, `/health`) and the scheduled jobs
 (`jobs.ts`), each a task prompt on an interval. `agent.ts` runs one Agent SDK
-query with only Bash and Skill allowed and no project or user settings. The
+query with only Bash and Skill allowed and no project or user settings
+(`runVisitorChat`, behind `/chat`, runs one with no tools at all). The
 agent drives `cast` and `curl` at a shell; what it knows about the protocol is
 in its skills, which `skills.ts` loads as one plugin holding exactly that
 agent's skills: always `kudo`, `kudo-runtime` and `twitter`, plus the agent's

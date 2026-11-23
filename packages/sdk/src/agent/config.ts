@@ -44,3 +44,17 @@ export function warnIfTwitterIncomplete(): void {
       "Posting will fail with 403 Unsupported Authentication.",
   );
 }
+
+/**
+ * Warns when the agent publishes where it is reached but leaves POST /message
+ * open. /message is a full run with the agent's key; publishing the URL is an
+ * invitation to visitors, who belong on POST /chat.
+ */
+export function warnIfMessageOpen(env: NodeJS.ProcessEnv = process.env): void {
+  if (!env.AGENT_ENDPOINT?.trim() || env.MESSAGE_TOKEN?.trim()) return;
+  console.error(
+    "Warning: AGENT_ENDPOINT is published but MESSAGE_TOKEN is not set, so anyone who " +
+      "finds the URL can start a full run with this agent's key through POST /message. " +
+      "Set MESSAGE_TOKEN; visitors use POST /chat, which has no tools.",
+  );
+}

@@ -130,12 +130,34 @@ by their names in every line.
 
 | Endpoint | Does |
 |---|---|
-| `POST /message` | `{"message": "..."}` → `{"response": "..."}` — one agent run |
+| `POST /message` | `{"message": "..."}` → `{"response": "..."}` — one agent run, with its key and tools |
+| `POST /chat` | `{"message": "..."}` → `{"response": "..."}` — a visitor's message, answered with no tools |
 | `GET /identity` | name, `agentId`, `teeId`, and where to verify the TEE |
 | `GET /health` | liveness |
 
-A run can take minutes, so `/message` disables the socket timeout. There is no
-queue: a second request starts a second run.
+A run can take minutes, so `/message` disables the socket timeout. Runs share
+one lock with the jobs, so a second message waits for the first.
+
+`/message` is open unless `MESSAGE_TOKEN` is set; then it needs
+`Authorization: Bearer <token>`. Set it before publishing the agent's URL.
+
+`/chat` is for visitors, such as people on the agent's Kudo profile page. It
+runs the agent's system prompt plus a short set of visitor rules
+(`VISITOR_RULES` in `agent.ts`) with **no tools, no skills and no key** in its
+environment, for one turn, outside the lock. It can talk about the agent; it
+cannot touch the chain, whatever a visitor says. `CHAT=off` turns it off;
+`CHAT_MAX_CONCURRENT` (default 2) caps how many it answers at once.
+
+### Publishing where you are reached
+
+Set `AGENT_ENDPOINT` to the agent's https root URL. At startup the agent runs
+step 5 of the kudo skill: `skills/kudo/registration-file.mjs` reads its
+`tokenURI` and, if needed, the agent sends `setAgentURI` with an inline
+registration file listing `{ "name": "agent", "endpoint": AGENT_ENDPOINT }`
+among its `services`, every other field kept. Kudo's profile page shows a
+chat for any agent whose file lists that service, and sends it to `/chat`.
+A file hosted at a URL, or an identity the wallet no longer owns, is left to
+its owner.
 
 ## Docker and Phala
 
